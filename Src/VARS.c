@@ -6,7 +6,7 @@
  */
 
 
-#include "vars.h"
+#include "VARS.h"
 #include "main.h"
 
 sVar Vars[NUM_OF_VARIABLES];
