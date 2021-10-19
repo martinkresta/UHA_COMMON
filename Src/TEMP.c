@@ -139,7 +139,7 @@ uint8_t TEMP_AddHwBus(uint8_t busId, GPIO_TypeDef* port, uint32_t pin)
 {
 	if (mNumOfBuses < MAX_NUM_OF_BUSES)
 	{
-		OW_AddBus(0,port, pin);
+		OW_AddBus(busId,port, pin);
 		mNumOfBuses ++;
 		return 0;
 	}
