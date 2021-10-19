@@ -6,11 +6,11 @@
 // Aplication has to define witch sensors are connected, and should be measured
 
 /* Dependencies */
+#include <UI.h>
 #include "TEMP.h"
 #include "OW.h"
 #include "main.h"
 #include "VARS.h"
-#include "leds.h"
 
 
 /* Private variables */
