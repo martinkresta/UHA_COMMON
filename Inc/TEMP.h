@@ -17,7 +17,7 @@
 #define MAX_ERR_TO_INVALIDATE		3  // max number of consecutive err readouts to set value as invalid
 
 
-#define NUM_OF_ALL_SENSORS    33
+
 // temp sensors aliases (see TempSensIDs.xlsx)
 #define      T1            0
 #define      T2            1
@@ -52,6 +52,9 @@
 #define      T_IOBOARD_U   30
 #define      T_TECHM       31
 #define      T_IOBOARD_D   32
+#define      T_ELECON      33
+
+#define NUM_OF_ALL_SENSORS 34
 
 
 
