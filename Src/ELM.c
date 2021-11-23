@@ -86,7 +86,9 @@ void ELM_ResetAllConsumptions(void)
 }
 
 // exti interrupt callback
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+
+
+void ELM_ExtiCallback(uint16_t GPIO_Pin)
 {
 	uint8_t i;
 	uint32_t period;

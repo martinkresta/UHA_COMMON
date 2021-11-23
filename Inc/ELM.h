@@ -35,6 +35,8 @@ uint16_t ELM_GetPowerW(uint8_t ElmId);
 void ELM_ResetConsumption(uint8_t ElmId);
 void ELM_ResetAllConsumptions(void);
 
+void ELM_ExtiCallback(uint16_t GPIO_Pin);
+
 
 
 #endif /* INC_ELM_H_ */
