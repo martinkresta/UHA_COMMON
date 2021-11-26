@@ -64,6 +64,7 @@ uint16_t ELM_GetPowerW(uint8_t ElmId)
 	{
 		return mMeters[ElmId].W;
 	}
+	return 0;
 }
 
 

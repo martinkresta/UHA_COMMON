@@ -100,7 +100,7 @@ void COM_SendVariable(uint16_t varId)
 
 void COM_SendMessage(uint16_t cobid, uint8_t* data, uint8_t dlc)
 {
-	MCAN_SendFrame(cobid, data, dlc);
+	MCAN_SendFrame(cobid + mNodeId, data, dlc);
 }
 
 
