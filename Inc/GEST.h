@@ -1,0 +1,74 @@
+/*
+ * GEST.h
+ *
+ *  Created on: Dec 2, 2021
+ *      Author: Martin
+ *       Brief : Module for detection of special gestures on lightswitch buttons.
+ *              All the button actions are handled by this module at first. If no gesture is detected, the button action is allowed to continue as standard
+ *              light operation action processed by lightctrl.c
+ *              Small delay is introduced to standard light control actions
+ */
+
+#ifndef INC_GEST_H_
+#define INC_GEST_H_
+
+#include "main.h"
+#include "di.h"
+#include "app.h"
+
+
+#define GEST_AC5KW_TOGGLE				0
+#define GEST_AC3KW_TOGGLE				1
+#define GEST_ALL_LIGHTS_OFF			2
+#define GEST_UPSTAIR_LIGHTS_OFF	3
+#define NUM_OF_GESTURES  				4
+
+
+#define SIM_PRESS_DURATION			50 // 50ms
+
+
+typedef enum
+{
+	egt_MultiButton,
+	egt_MultiTouch
+}eGestType;
+
+typedef enum
+{
+	egs_Idle,
+	egs_Pending,
+	egs_Finishing
+}eGestState;
+
+typedef struct
+{
+	uint16_t id;
+	eGestType type;
+	uint8_t num_of_touches;  // used only for multitouch type
+	uint8_t num_of_buttons;
+	uint8_t btnIds[4];    // max four buttons can be used in one gesture
+	uint16_t timeout;
+}sGestInit;
+
+
+typedef struct
+{
+	sGestInit init;
+	eGestState state;
+	uint8_t touches;
+	uint16_t timer;
+	uint8_t triggerInput;
+	eDI triggerState;
+}sGesture;
+
+
+
+void GEST_Init(void);
+
+void GEST_DiInputChanged(uint8_t inputId, eDI state);
+
+void GEST_AddGesture(sGestInit* gesture);
+
+void GEST_Update_10ms(void);
+
+#endif /* INC_GEST_H_ */

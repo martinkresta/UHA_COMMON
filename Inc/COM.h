@@ -20,8 +20,9 @@
 
 #define  CMD_BUTTON_STATE  0x100
 #define  CMD_VAR_VALUE		 0x110
+#define  CMD_GESTURE			 0x120
 
-#define  CMD_RTC_SYNC  0x510
+#define  CMD_RTC_SYNC  		 0x510
 
 
 #define  STREAM_LIST_SIZE		30
