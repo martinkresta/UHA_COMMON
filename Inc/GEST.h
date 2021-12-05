@@ -13,8 +13,9 @@
 #define INC_GEST_H_
 
 #include "main.h"
-#include "di.h"
 #include "app.h"
+
+
 
 
 #define GEST_AC5KW_TOGGLE				0
@@ -24,7 +25,22 @@
 #define NUM_OF_GESTURES  				4
 
 
-#define SIM_PRESS_DURATION			50 // 50ms
+#define SIM_PRESS_DURATION			100 //100ms
+
+
+#ifndef _DIN_H
+
+	typedef enum
+	{
+		eDI_LO		= 0x00, /**< Digital input is reset. */
+		eDI_HI		= 0x01	/**< Digital input is set. */
+	}eDI;
+
+#else
+
+#include "DI.h"
+
+#endif
 
 
 typedef enum

@@ -12,6 +12,9 @@
 
 #include "GEST.h"
 #include "stdio.h"
+#include "stdlib.h"
+#include "string.h"
+
 
 sGesture* mGestures[NUM_OF_GESTURES];
 sGesture* mPendingGesture;
@@ -21,7 +24,7 @@ void GEST_Init(void)
 {
 	uint8_t i;
 	mPendingGesture = NULL;
-	for (i = 0; i++; i < NUM_OF_GESTURES)
+	for (i = 0; i < NUM_OF_GESTURES; i++)
 	{
 		mGestures[i] == NULL;
 	}
@@ -66,7 +69,7 @@ void GEST_DiInputChanged(uint8_t inputId, eDI state)
 		{
 			for(b = 0; b < mPendingGesture->init.num_of_buttons; b++)
 			{
-				if (mPendingGesture->init.btnIds[b] == inputId); // button assigned to pending gesture
+				if (mPendingGesture->init.btnIds[b] == inputId) // button assigned to pending gesture
 				{
 					mPendingGesture->touches ++;
 					mPendingGesture->timer = 0;
@@ -134,12 +137,15 @@ void GEST_Update_10ms(void)
 		}
 		else  // pass further as a standard button press
 		{
-			mPendingGesture->timer += 10;
-			if(mPendingGesture->timer  >= mPendingGesture->init.timeout)
+			if  (mPendingGesture->state == egs_Pending)
 			{
-				mPendingGesture->state = egs_Finishing;
-				mPendingGesture->timer = 0;
-				APP_DiInputChanged(mPendingGesture->triggerInput, eDI_HI); // forward the rising edge
+				mPendingGesture->timer += 10;
+				if(mPendingGesture->timer  >= mPendingGesture->init.timeout)
+				{
+					mPendingGesture->state = egs_Finishing;
+					mPendingGesture->timer = 0;
+					APP_DiInputChanged(mPendingGesture->triggerInput, eDI_HI); // forward the rising edge
+				}
 			}
 		}
 
