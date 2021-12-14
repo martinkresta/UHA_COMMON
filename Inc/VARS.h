@@ -57,11 +57,26 @@
 #define  VAR_CONS_OTHER_WH  66
 #define  VAR_CONS_TECHM_WH  67
 
+#define  VAR_POW_AC300_W  70
+#define  VAR_POW_AC3KW_W  71
+#define  VAR_POW_AC5KW_W  72
+#define  VAR_POW_FRIDGE_W  73
+#define  VAR_POW_KITCHEN_W  74
+#define  VAR_POW_WASCHMACHINE_W  75
+#define  VAR_POW_OTHER_W  76
+#define  VAR_POW_TECHM_W  77
+
+
 
 #define  VAR_EL_HEATER_STATUS  80
 #define  VAR_EL_HEATER_POWER  81
 #define  VAR_EL_HEATER_CURRENT  82
 #define  VAR_EL_HEATER_CONS  83
+
+#define  VAR_HEAT_TOTAL_WH  85
+#define  VAR_HEAT_HEATING_WH  86
+
+
 #define  VAR_FLOW_COLD  90
 #define  VAR_FLOW_HOT  91
 #define  VAR_CONS_COLD  92
