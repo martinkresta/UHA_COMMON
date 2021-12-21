@@ -249,7 +249,7 @@ static void UI_Control (sUI *led,uint8_t led_switch)
 			}		
 			break;
 		 case eUI_BEEP_ONCE:
-					if(led->Led_Cnt <= 25)  // blink for 250ms
+					if(led->Led_Cnt <= 300)  // beep for 3 sec
 					{
 						if(led->Logic == eUIL_NEGATIVE)
 						{

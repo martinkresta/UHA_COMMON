@@ -81,6 +81,9 @@
 #define  VAR_FLOW_HOT  91
 #define  VAR_CONS_COLD  92
 #define  VAR_CONS_HOT  93
+
+#define  VAR_BOILER_POWER  98
+#define  VAR_BOILER_HEAT  99
 #define  VAR_TEMP_BOILER  100
 #define  VAR_TEMP_BOILER_IN  101
 #define  VAR_TEMP_BOILER_OUT  102
