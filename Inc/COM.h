@@ -25,7 +25,7 @@
 #define  CMD_RTC_SYNC  		 0x510
 
 
-#define  STREAM_LIST_SIZE		30
+#define  STREAM_LIST_SIZE		70
 
 
 void COM_Init(uint8_t nodeId);

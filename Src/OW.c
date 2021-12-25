@@ -274,6 +274,9 @@ eOwResult OW_ReadRom(uint8_t busId)
 // private fcn called from last IRQ of OW transfer
 void TransferComplete()
 {
+	uint16_t rawbits;
+	int16_t rawvalue;
+
 	if (mPresencePulse == 0)
 	{
 		mLastTransferResult = etr_NotPresent;
@@ -289,7 +292,11 @@ void TransferComplete()
 		case ett_ReadTemp:
 			if (mResultPtr != NULL)
 			{
-				*mResultPtr = (int16_t)((double)(((uint16_t)mRxBuff[0] | ((uint16_t)mRxBuff[1]) << 8)) / 1.6);
+				rawbits = (uint16_t)mRxBuff[0]  |   ((uint16_t)mRxBuff[1]) << 8;
+				rawvalue = (int16_t)rawbits;
+				*mResultPtr = (rawvalue * 10) / 16;
+				//*mResultPtr = (int16_t)((double)(((uint16_t)mRxBuff[0] | ((uint16_t)mRxBuff[1]) << 8)) / 1.6);
+
 				mResultPtr = NULL; // clear the pointer to prevent overwrite in next cycle.
 			}
 			break;
