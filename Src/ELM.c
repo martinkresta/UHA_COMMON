@@ -42,8 +42,25 @@ void ELM_Update_1s(void)
 {
 	// copy the values to variables
 	uint8_t i;
+	uint32_t tick = HAL_GetTick();
+	uint32_t period;
+	uint16_t estimatedPower;
 	for(i = 0 ; i < mNumOfMeters; i++)
 	{
+		period = tick - mMeters[i].LastPulse;
+		if (period >  (3600000 / MIN_MEASURABLE_POWER_W))  // power decreased under measurable threshold
+		{
+			mMeters[i].W = 0;  // set power to zero
+		}
+		else if (period >  10000)  // after 10 seconds from last S0 pulse start decreasing measured power (worstcase estimation)
+		{
+			estimatedPower = 3600000 / period;  // actual estimated power
+			if (mMeters[i].W > estimatedPower);
+			{
+				mMeters[i].W = estimatedPower;
+			}
+		}
+
 		VAR_SetVariable(mMeters[i].VarId, mMeters[i].Wh, 1);
 		VAR_SetVariable(mMeters[i].VarId + 10, mMeters[i].W, 1);
 	}
@@ -54,6 +71,10 @@ uint16_t ELM_GetConsumptionWh(uint8_t ElmId)
 	if(ElmId < mNumOfMeters)
 	{
 		return mMeters[ElmId].Wh;
+	}
+	else
+	{
+		return 0;
 	}
 }
 

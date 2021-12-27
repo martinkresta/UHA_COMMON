@@ -56,6 +56,8 @@
 #define  VAR_CONS_WASCHMACHINE_WH  65
 #define  VAR_CONS_OTHER_WH  66
 #define  VAR_CONS_TECHM_WH  67
+#define  VAR_CONS_KITCHEN_A_WH  68
+#define  VAR_CONS_KITCHEN_B_WH  69
 
 #define  VAR_POW_AC300_W  70
 #define  VAR_POW_AC3KW_W  71
@@ -65,6 +67,8 @@
 #define  VAR_POW_WASCHMACHINE_W  75
 #define  VAR_POW_OTHER_W  76
 #define  VAR_POW_TECHM_W  77
+#define  VAR_POW_KITCHEN_A_W  78
+#define  VAR_POW_KITCHEN_B_W  79
 
 
 
