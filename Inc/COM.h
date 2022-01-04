@@ -22,6 +22,8 @@
 #define  CMD_VAR_VALUE		 0x110
 #define  CMD_GESTURE			 0x120
 
+#define  CMD_BALANCE_INFO  0x310
+
 #define  CMD_RTC_SYNC  		 0x510
 
 

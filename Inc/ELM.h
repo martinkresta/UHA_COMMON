@@ -13,7 +13,7 @@
 #include "main.h"
 #include "stdlib.h"
 
-#define   MIN_MEASURABLE_POWER_W		5
+#define   MIN_MEASURABLE_POWER_W		10
 
 typedef struct
 {

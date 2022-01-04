@@ -55,7 +55,7 @@ void ELM_Update_1s(void)
 		else if (period >  10000)  // after 10 seconds from last S0 pulse start decreasing measured power (worstcase estimation)
 		{
 			estimatedPower = 3600000 / period;  // actual estimated power
-			if (mMeters[i].W > estimatedPower);
+			if (mMeters[i].W > estimatedPower)
 			{
 				mMeters[i].W = estimatedPower;
 			}
