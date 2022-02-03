@@ -16,15 +16,17 @@
 #include "string.h"
 
 
-sGesture* mGestures[NUM_OF_GESTURES];
+sGesture* mGestures[MAX_NUM_OF_GESTURES];
 sGesture* mPendingGesture;
+uint8_t mNumOfGestures;
 
 
 void GEST_Init(void)
 {
 	uint8_t i;
 	mPendingGesture = NULL;
-	for (i = 0; i < NUM_OF_GESTURES; i++)
+	mNumOfGestures = 0;
+	for (i = 0; i < MAX_NUM_OF_GESTURES; i++)
 	{
 		mGestures[i] == NULL;
 	}
@@ -41,7 +43,7 @@ void GEST_DiInputChanged(uint8_t inputId, eDI state)
 		// search if this button is used by some gesture
 		if(state == eDI_HI)
 		{
-			for(g = 0; g < NUM_OF_GESTURES ; g++)
+			for(g = 0; g < mNumOfGestures ; g++)
 			{
 				for(b = 0; b < mGestures[g]->init.num_of_buttons; b++)
 				{
@@ -91,6 +93,7 @@ void GEST_AddGesture(sGestInit* gesture)
 	if (mGestures[gesture->id] != NULL)
 	{
 	  memcpy(&(mGestures[gesture->id]->init),gesture, sizeof(sGestInit));
+	  mNumOfGestures++;
 	}
 	else
 	{
@@ -130,7 +133,7 @@ void GEST_Update_10ms(void)
 
 		if (gestDetected)
 		{
-			APP_GestureDetected(mPendingGesture->init.id);  // gesture action
+			APP_GestureDetected(mPendingGesture->init.action);  // gesture action
 			mPendingGesture->state = egs_Idle;
 			mPendingGesture = NULL;
 			// if gesture is detected, button action is NOT forwarded to light control

@@ -17,12 +17,15 @@
 
 
 
+// gesture actions
+#define GEST_AC5KW_TOGGLE					0
+#define GEST_AC3KW_TOGGLE					1
+#define GEST_ALL_LIGHTS_OFF				2
+#define GEST_UPSTAIR_LIGHTS_OFF		3
+#define GEST_DOWNSTAIR_LIGHTS_OFF	4
 
-#define GEST_AC5KW_TOGGLE				0
-#define GEST_AC3KW_TOGGLE				1
-#define GEST_ALL_LIGHTS_OFF			2
-#define GEST_UPSTAIR_LIGHTS_OFF	3
-#define NUM_OF_GESTURES  				4
+
+#define MAX_NUM_OF_GESTURES  			10
 
 
 #define SIM_PRESS_DURATION			100 //100ms
@@ -59,6 +62,7 @@ typedef enum
 typedef struct
 {
 	uint16_t id;
+	uint16_t action;
 	eGestType type;
 	uint8_t num_of_touches;  // used only for multitouch type
 	uint8_t num_of_buttons;
