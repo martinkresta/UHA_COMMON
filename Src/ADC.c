@@ -7,6 +7,7 @@
 
 #include "main.h"
 #include "adc.h"
+#include <stdlib.h>
 
 
 ADC_HandleTypeDef* adc;
@@ -16,12 +17,14 @@ uint8_t mNumOfChannels;
 uint16_t* mResults = NULL;
 
 
-void ADC_Init(ADC_HandleTypeDef*  ADC, DMA_HandleTypeDef* DMA, uint8_t numOfChannels)
+void ADC_Init(ADC_HandleTypeDef*  hADC, DMA_HandleTypeDef* hDMA, uint8_t numOfChannels)
 {
-	adc = ADC;
-	dma = DMA;
+	adc = hADC;
+	dma = hDMA;
 	mNumOfChannels = numOfChannels;
+#ifdef STM32L4    // calibration supported only by STM32L4xx family
 	HAL_ADCEx_Calibration_Start(adc, ADC_SINGLE_ENDED);
+#endif
 	mResults = malloc(mNumOfChannels * sizeof(uint16_t));
 }
 
