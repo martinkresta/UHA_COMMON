@@ -10,6 +10,7 @@
 	I N C L U D E
 *************************/
 #include "UI.h"
+#include "APP.h"
 
 /*************************
 	V A R I A B L E 
@@ -49,10 +50,12 @@ void UI_Init (sUIHwInit* hw)
 	init_struct.Logic				= hw->Led_R.Logic;
 	UI_Struct_Initialisation (init_struct, &LED_R);
 
+#ifndef LIMITED_UI
+
 	init_struct.Pin					= hw->Led_G.Pin;
 	init_struct.Port				= hw->Led_G.Port;
 	init_struct.Logic				= hw->Led_G.Logic;
-  UI_Struct_Initialisation (init_struct, &LED_G);
+	UI_Struct_Initialisation (init_struct, &LED_G);
 
 	init_struct.Pin					= hw->Led_B.Pin;
 	init_struct.Port				= hw->Led_B.Port;
@@ -63,7 +66,7 @@ void UI_Init (sUIHwInit* hw)
 	init_struct.Port				= hw->Buzzer.Port;
 	init_struct.Logic				= hw->Buzzer.Logic;
   UI_Struct_Initialisation (init_struct, &Buzzer);
-
+#endif
 }
 
 /**
@@ -82,9 +85,11 @@ void UI_Update_10ms()
 {
 	UI_Control(&LED_Life, 	0x00);
 	UI_Control(&LED_R, 	0x00);
+#ifndef LIMITED_UI
 	UI_Control(&LED_G, 	0x00);
 	UI_Control(&LED_B, 	0x00);
 	UI_Control(&Buzzer, 	0x00);
+#endif
 }
 
 

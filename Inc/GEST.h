@@ -20,9 +20,13 @@
 // gesture actions
 #define GEST_AC5KW_TOGGLE					0
 #define GEST_AC3KW_TOGGLE					1
-#define GEST_ALL_LIGHTS_OFF				2
-#define GEST_UPSTAIR_LIGHTS_OFF		3
-#define GEST_DOWNSTAIR_LIGHTS_OFF	4
+#define GEST_ALL_LIGHTS_OFF					2
+#define GEST_UPSTAIR_LIGHTS_OFF				3
+#define GEST_DOWNSTAIR_LIGHTS_OFF			4
+#define GEST_WSCRC_EAST_UP					5
+#define GEST_WSCRC_EAST_DOWN				6
+#define GEST_WSCRC_WEST_UP					7
+#define GEST_WSCRC_WEST_DOWN				8
 
 
 #define MAX_NUM_OF_GESTURES  			10

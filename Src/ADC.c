@@ -52,7 +52,5 @@ uint16_t ADC_GetValue(uint8_t channel)
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
-
 	HAL_ADC_Stop_DMA(adc);
-
 }

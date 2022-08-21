@@ -44,6 +44,7 @@
 #define NODEID_TECHM		 			3
 #define NODEID_ELECON					4
 #define NODEID_RECU 					5
+#define NODEID_EVSE						6
 
 
 
