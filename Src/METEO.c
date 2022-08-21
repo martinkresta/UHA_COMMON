@@ -32,7 +32,8 @@ void METEO_Update_1s(void)
 	uint16_t sum;
 	uint32_t tick = HAL_GetTick();
 	uint32_t period;
-	uint16_t estimatedPower;
+	uint64_t thirdPower;
+	uint64_t powerOfWind;
 
    period = tick - mWind.LastPulse;
    if (period >  MAX_WINDPULSE_PERIOD_MS)  // wind decreased under measurable threshold
@@ -40,7 +41,7 @@ void METEO_Update_1s(void)
       mWind.WindSpeedBurst = 0;  // set wind to zero
    }
 
-   mWind.buff[mWind.avgIdx++] == mWind.WindSpeedBurst;
+   mWind.buff[mWind.avgIdx++] = mWind.WindSpeedBurst;
    if(mWind.avgIdx >= WIND_AVG_WINDOW_S) mWind.avgIdx = 0;
 
    sum = 0;
@@ -52,7 +53,10 @@ void METEO_Update_1s(void)
 
    // calculate theoretical power of wind on 1m2 Savonius turbine
 
-   mWind.PowerW = (uint16_t) (5 * 1 * AIR_DENSITY_GM3 * ((uint64_t)(mWind.WindSpeedAvg)^3) * TURBINE_EFFICIENCY_PCT) / 1000000000;
+
+   thirdPower = ((uint64_t)(mWind.WindSpeedAvg) * (uint64_t)(mWind.WindSpeedAvg) * (uint64_t)(mWind.WindSpeedAvg));
+   powerOfWind = (5 * 1 * AIR_DENSITY_GM3 * thirdPower) / 10000000;
+   mWind.PowerW = (uint16_t) (powerOfWind * TURBINE_EFFICIENCY_PCT) / 100;
    mWind.EnergyuWh += (uint64_t) (((uint64_t)mWind.PowerW * 1000000 )/ 3600);
 
 

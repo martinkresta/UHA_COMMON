@@ -13,7 +13,7 @@
 #include "main.h"
 #include "stdlib.h"
 
-#define   MAX_WINDPULSE_PERIOD_MS   	100000
+#define   MAX_WINDPULSE_PERIOD_MS   	10000
 #define   WIND_AVG_WINDOW_S            30
 
 #define   AIR_DENSITY_GM3              1296
