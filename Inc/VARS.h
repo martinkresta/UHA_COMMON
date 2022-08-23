@@ -115,14 +115,20 @@
 #define  VAR_TEMP_KIDROOM  126
 #define  VAR_TEMP_OUTSIDE  127
 
-#define  VAR_CONS_EVSE_WH	130
-#define  VAR_POW_EVSE_W		140
+#define  VAR_TEMP_RECU_FC  128
+#define  VAR_TEMP_RECU_FH  129
+#define  VAR_TEMP_RECU_WH  130
+#define  VAR_TEMP_RECU_WC  131
+
+
 
 #define  VAR_METEO_WIND_BURST  161
 #define  VAR_METEO_WIND_AVG  162
 #define  VAR_METEO_WIND_POW  163
 #define  VAR_METEO_WIND_ENERGY  164
 
+#define  VAR_CONS_EVSE_WH  170
+#define  VAR_POW_EVSE_W    171
 
 #define  VAR_BMS1_CELL1_MV  180
 #define  VAR_BMS1_CELL2_MV  181

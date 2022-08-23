@@ -28,33 +28,40 @@
 #define      T7            6
 #define      T8            7
 #define      T9            8
-#define      T10           9
-#define      T101          10
-#define      T102          11
-#define      T103          12
-#define      T104          13
-#define      T105          14
-#define      T106          15
-#define      T107          16
-#define      T108          17
-#define      T109          18
-#define      T110          19
-#define      T301          20
-#define      T302          21
-#define      T303          22
-#define      T304          23
-#define      T305          24
-#define      T306          25
-#define      T307          26
-#define      T308          27
-#define      T309          28
-#define      T310          29
-#define      T_IOBOARD_U   30
-#define      T_TECHM       31
-#define      T_IOBOARD_D   32
-#define      T_ELECON      33
+#define      T10            9
+#define      T101            10
+#define      T102            11
+#define      T103            12
+#define      T104            13
+#define      T105            14
+#define      T106            15
+#define      T107            16
+#define      T108            17
+#define      T109            18
+#define      T110            19
+#define      T111            20
+#define      T112            21
+#define      T113            22
+#define      T114            23
+#define      T115            24
+#define      T116            25
+#define      T301            26
+#define      T302            27
+#define      T303            28
+#define      T304            29
+#define      T305            30
+#define      T306            31
+#define      T307            32
+#define      T308            33
+#define      T309            34
+#define      T310            35
+#define      T_IOBOARD_U            36
+#define      T_TECHM            37
+#define      T_IOBOARD_D            38
+#define      T_ELECON            39
 
-#define NUM_OF_ALL_SENSORS 34
+
+#define NUM_OF_ALL_SENSORS 40
 
 
 
