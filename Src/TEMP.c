@@ -109,10 +109,10 @@ void TEMP_Update100ms(void)
 			   UI_LED_Life_SetMode(eUI_BLINKING_FAST);
 			}
 
-			if ( mSensors[i].rawTempC_10ths == 0)
+	/*		if ( mSensors[i].rawTempC_10ths == 0)
          {
             UI_LED_Life_SetMode(eUI_BLINKING_FAST);   // debug feature, to be removed
-         }
+         }*/
 
 			if (mSensors[i].errorCnt > MAX_ERR_TO_INVALIDATE)
 			{

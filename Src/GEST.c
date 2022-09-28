@@ -17,14 +17,16 @@
 
 
 sGesture* mGestures[MAX_NUM_OF_GESTURES];
-sGesture* mPendingGesture;
+//sGesture* mPendingGesture;
+sGestInput mConsumedInput;
 uint8_t mNumOfGestures;
 
 
 void GEST_Init(void)
 {
 	uint8_t i;
-	mPendingGesture = NULL;
+	mConsumedInput.state = egs_Idle;
+	mConsumedInput.cnt = 0;
 	mNumOfGestures = 0;
 	for (i = 0; i < MAX_NUM_OF_GESTURES; i++)
 	{
@@ -38,8 +40,9 @@ void GEST_DiInputChanged(uint8_t inputId, eDI state)
 
 	uint8_t b,g;
 	// if no gesture is pending
-	if(mPendingGesture == NULL)
+	if(mConsumedInput.state == egs_Idle)
 	{
+	   mConsumedInput.cnt = 0;
 		// search if this button is used by some gesture
 		if(state == eDI_HI)
 		{
@@ -49,14 +52,16 @@ void GEST_DiInputChanged(uint8_t inputId, eDI state)
 				{
 					if (mGestures[g]->init.btnIds[b] == inputId) // gesture detection starting
 					{
-						mPendingGesture = mGestures[g];
-						mPendingGesture->state = egs_Pending;
-						mPendingGesture->timer = 0;
-						mPendingGesture->triggerInput = inputId;   // store the button ID which activated gesture detection
-						mPendingGesture->triggerState = state;     // kind of obsolete
-						if (mPendingGesture->init.type == egt_MultiTouch)
+					  mConsumedInput.state = egs_Pending;
+					  mConsumedInput.triggerInput = inputId;
+					  mConsumedInput.cnt ++;
+						mGestures[g]->state = egs_Pending;
+						mGestures[g]->timer = 0;
+						mGestures[g]->triggerInput = inputId;   // store the button ID which activated gesture detection
+						mGestures[g]->triggerState = state;     // kind of obsolete
+						if (mGestures[g]->init.type == egt_MultiTouch)
 						{
-							mPendingGesture->touches = 1;
+						   mGestures[g]->touches = 1;
 						}
 					}
 				}
@@ -67,21 +72,30 @@ void GEST_DiInputChanged(uint8_t inputId, eDI state)
 	else
 	{
 		// for multitouch gestures. increment the counter, and reset timer
-		if (mPendingGesture->init.type == egt_MultiTouch && state == eDI_HI)
-		{
-			for(b = 0; b < mPendingGesture->init.num_of_buttons; b++)
-			{
-				if (mPendingGesture->init.btnIds[b] == inputId) // button assigned to pending gesture
-				{
-					mPendingGesture->touches ++;
-					mPendingGesture->timer = 0;
-				}
-			}
-		}
+
+	   for(g = 0; g < mNumOfGestures ; g++)
+	   {
+	     if(mGestures[g]->state == egs_Pending)
+	     {
+	        if (mGestures[g]->init.type == egt_MultiTouch && state == eDI_HI)
+            {
+               for(b = 0; b < mGestures[g]->init.num_of_buttons; b++)
+               {
+                 if (mGestures[g]->init.btnIds[b] == inputId) // button assigned to pending gesture
+                 {
+                    mGestures[g]->touches ++;
+                    mGestures[g]->timer = 0;
+                 }
+               }
+            }
+	      }
+
+	   }
+
 	}
 
 //	if(mPendingGesture == NULL || state == eDI_LO)
-	if(mPendingGesture == NULL)
+	if(mConsumedInput.state == egs_Idle)
 	{
 		APP_DiInputChanged(inputId, state);
 	}
@@ -104,67 +118,79 @@ void GEST_AddGesture(sGestInit* gesture)
 void GEST_Update_10ms(void)
 {
 	uint8_t gestDetected = 0;
-	uint8_t i;
-	if (mPendingGesture != NULL)
+	uint8_t i,g;
+
+	for(g = 0; g < mNumOfGestures ; g++)
 	{
-		if (mPendingGesture->state == egs_Pending)  // gesture detection period pending
-		{
-			switch (mPendingGesture->init.type)
-			{
-				case egt_MultiButton:
-					gestDetected = 1;
-					for (i = 0; i < mPendingGesture->init.num_of_buttons; i++)
-					{
-						if (DI_Get(mPendingGesture->init.btnIds[i]) == eDI_LO)  // check that all buttons are pressed
-						{
-							gestDetected = 0;  // if some is not pressed gesture is not detected
-						}
-					}
-					break;
-				case egt_MultiTouch:
-					if (mPendingGesture->touches >= mPendingGesture->init.num_of_touches)
-					{
-						gestDetected = 1; // gesture is deteceted after num_of_touches touches
-					}
-					break;
-			}
-		}
+	  gestDetected = 0;
 
+	  if (mGestures[g]->state == egs_Pending)  // gesture detection period pending
+    {
+      switch (mGestures[g]->init.type)
+      {
+        case egt_MultiButton:
+          gestDetected = 1;
+          for (i = 0; i < mGestures[g]->init.num_of_buttons; i++)
+          {
+            if (DI_Get(mGestures[g]->init.btnIds[i]) == eDI_LO)  // check that all buttons are pressed
+            {
+              gestDetected = 0;  // if some is not pressed gesture is not detected
+            }
+          }
+          break;
+        case egt_MultiTouch:
+          if (mGestures[g]->touches >= mGestures[g]->init.num_of_touches)
+          {
+            gestDetected = 1; // gesture is detected after num_of_touches touches
+          }
+          break;
+      }
 
-		if (gestDetected)
-		{
-			APP_GestureDetected(mPendingGesture->init.action);  // gesture action
-			mPendingGesture->state = egs_Idle;
-			mPendingGesture = NULL;
-			// if gesture is detected, button action is NOT forwarded to light control
-		}
-		else  // pass further as a standard button press
-		{
-			if  (mPendingGesture->state == egs_Pending)
-			{
-				mPendingGesture->timer += 10;
-				if(mPendingGesture->timer  >= mPendingGesture->init.timeout)
-				{
-					mPendingGesture->state = egs_Finishing;
-					mPendingGesture->timer = 0;
-					APP_DiInputChanged(mPendingGesture->triggerInput, eDI_HI); // forward the rising edge
-				}
-			}
-		}
-
-		if (mPendingGesture->state == egs_Finishing)
-		{
-			mPendingGesture->timer += 10;
-			if(mPendingGesture->timer  >= SIM_PRESS_DURATION)
-			{
-				if (DI_Get(mPendingGesture->triggerInput) == eDI_LO) // .. if button was already released..
-				{
-					APP_DiInputChanged(mPendingGesture->triggerInput, eDI_LO); //.. simulate falling edge
-				}
-				mPendingGesture->state = egs_Idle;
-				mPendingGesture = NULL;
-			}
-		}
+      if (gestDetected)
+      {
+        APP_GestureDetected(mGestures[g]->init.action);  // gesture action
+        mGestures[g]->state = egs_Idle;
+        mConsumedInput.state = egs_Idle;
+        // if gesture is detected, button action is NOT forwarded to light control
+      }
+      else
+      {
+        mGestures[g]->timer += 10;
+        if(mGestures[g]->timer  >= mGestures[g]->init.timeout)
+        {
+          mGestures[g]->state = egs_Idle;
+          mGestures[g]->timer = 0;
+          if(mConsumedInput.cnt > 0)
+          {
+            mConsumedInput.cnt --;
+          }
+        }
+      }
+    }
 	}
+
+
+	// process the consumed inputs
+
+	if (mConsumedInput.state == egs_Pending && mConsumedInput.cnt == 0)   // if all pending gestures which consumed the input are timed out
+	{
+	  APP_DiInputChanged(mConsumedInput.triggerInput, eDI_HI); // forward the rising edge
+	  mConsumedInput.state = egs_Finishing;
+	  mConsumedInput.timer = 0;
+	}
+
+	if (mConsumedInput.state == egs_Finishing)
+  {
+	  mConsumedInput.timer += 10;
+    if(mConsumedInput.timer  >= SIM_PRESS_DURATION)
+    {
+      if (DI_Get(mConsumedInput.triggerInput) == eDI_LO) // .. if button was already released..
+      {
+        APP_DiInputChanged(mConsumedInput.triggerInput, eDI_LO); //.. simulate falling edge
+      }
+      mConsumedInput.state = egs_Idle;
+    }
+  }
+
 
 }

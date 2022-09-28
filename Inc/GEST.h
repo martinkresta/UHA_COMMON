@@ -86,6 +86,17 @@ typedef struct
 }sGesture;
 
 
+typedef struct
+{
+  eGestState state;
+  uint8_t triggerInput;
+  eDI triggerState;
+  uint8_t cnt;
+  uint16_t timer;
+}sGestInput;
+
+
+
 
 void GEST_Init(void);
 
