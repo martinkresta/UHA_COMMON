@@ -106,7 +106,7 @@ void TEMP_Update100ms(void)
 			}
 			else
 			{
-			   UI_LED_Life_SetMode(eUI_BLINKING_FAST);
+			  // UI_LED_Life_SetMode(eUI_BLINKING_FAST);
 			}
 
 	/*		if ( mSensors[i].rawTempC_10ths == 0)
