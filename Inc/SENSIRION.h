@@ -15,6 +15,13 @@
 
 #define SENS_MAX_SENSORS  10
 
+#define SENS_I2C_ADR_SHT41    0x44
+#define SENS_I2C_ADR_SCD41    0x62
+#define SENS_I2C_ADR_SDP810   0x25
+
+#define CRC8_POLYNOMIAL 0x31
+#define CRC8_INIT 0xFF
+
 
 typedef enum
 {
