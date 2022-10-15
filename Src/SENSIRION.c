@@ -25,7 +25,7 @@ int16_t SDPx_StartMeasurement(sI2cSensor* sens);
 int16_t SDPx_StopMeasurement(sI2cSensor* sens);
 int16_t SDPx_Read(sI2cSensor* sens, int16_t* dp);
 
-uint8_t CalculateCRC(uint8_t* data, uint8_t len);
+static uint8_t CalculateCRC(uint8_t* data, uint8_t len);
 
 
 uint16_t scd_timer;
@@ -294,7 +294,7 @@ int16_t SDPx_Read(sI2cSensor* sens, int16_t* dp)
 
 
 
-uint8_t CalculateCRC(uint8_t* data, uint8_t len)
+static uint8_t CalculateCRC(uint8_t* data, uint8_t len)
 {
   uint16_t current_byte;
   uint8_t crc = CRC8_INIT;

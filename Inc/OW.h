@@ -79,7 +79,8 @@ typedef enum
 	etr_Busy,
 	etr_UnknownBus,
 	etr_NotPresent,
-	etr_ComFailure
+	etr_ComFailure,
+	etr_InvalidParam
 } eOwResult;
 
 typedef struct
@@ -93,7 +94,7 @@ void OW_Init(void);
 
 void OW_AddBus(uint8_t busId, GPIO_TypeDef* port, uint32_t pin);
 
-eOwResult OW_ReadSensor(uint8_t busId, uint8_t* address, int16_t* result);
+eOwResult OW_ReadSensor(uint8_t busId, uint8_t* address, int16_t* result, uint8_t* valid);
 
 void OW_IRQHandler(void);
 

@@ -41,6 +41,7 @@ uint8_t mTxBuff[12];
 uint8_t mRxBuff[12];
 
 int16_t* mResultPtr;
+uint8_t* mValidPtr;
 
 int16_t  mLastTemp;
 uint8_t mBusy;
@@ -55,7 +56,7 @@ int16_t mTemp;
 
 uint8_t mROM[8];
 
-
+static uint8_t CalculateCRC(uint8_t* data, uint8_t len);
 
 static void ActivateBus(uint8_t mBusId)
 {
@@ -134,13 +135,17 @@ void ClearRxBuffer()
 	mRxBuff[7] = 0;
 }
 
-eOwResult OW_ReadSensor(uint8_t busId, uint8_t* address, int16_t* result)
+eOwResult OW_ReadSensor(uint8_t busId, uint8_t* address, int16_t* result, uint8_t* valid)
 {
 	eOwResult res = etr_OK;
 
 	if (mBus[busId].Port == NULL)
 	{
 		res = etr_UnknownBus;
+	}
+	else if (result == NULL | valid == NULL)
+	{
+	  res = etr_InvalidParam;
 	}
 	else if (mBusy)
 	{
@@ -152,6 +157,7 @@ eOwResult OW_ReadSensor(uint8_t busId, uint8_t* address, int16_t* result)
 		ClearRxBuffer();
 		// initialize transfer parameters
 		mResultPtr = result;
+		mValidPtr = valid;
 		mTxBuff[0] = CMD_MATCH_ROM;
 		mTxBuff[1] = address[0];
 		mTxBuff[2] = address[1];
@@ -169,7 +175,7 @@ eOwResult OW_ReadSensor(uint8_t busId, uint8_t* address, int16_t* result)
 		mBitStage = ebs_Init;
 		mPresencePulse = 0;
 		mBytesToWrite = 10;
-		mBytesToRead = 2;
+		mBytesToRead = 9; //2;
 		mCurrBit = 0;
 		mCurrByte = 0;
 		mCurrentTranfer = ett_ReadTemp;
@@ -186,7 +192,8 @@ eOwResult OW_ReadSensor(uint8_t busId, uint8_t* address, int16_t* result)
 
 void OW_Read_SingleSensor(uint8_t busId)
 {
-	OW_ReadSensor(busId, mROM, &mTemp);
+  uint8_t valid;
+	OW_ReadSensor(busId, mROM, &mTemp, &valid);
 }
 
 
@@ -294,7 +301,18 @@ void TransferComplete()
 			{
 				rawbits = (uint16_t)mRxBuff[0]  |   ((uint16_t)mRxBuff[1]) << 8;
 				rawvalue = (int16_t)rawbits;
-				*mResultPtr = (rawvalue * 10) / 16;
+				// chech CRC
+				if (mRxBuff[8] == CalculateCRC(mRxBuff, 8))
+				{
+				  // insert value only if valid CRC
+				  *mResultPtr = (rawvalue * 10) / 16;
+				  *mValidPtr = 1;
+				}
+				else
+				{
+				  *mValidPtr = 0;
+				}
+
 				//*mResultPtr = (int16_t)((double)(((uint16_t)mRxBuff[0] | ((uint16_t)mRxBuff[1]) << 8)) / 1.6);
 
 				mResultPtr = NULL; // clear the pointer to prevent overwrite in next cycle.
@@ -477,4 +495,26 @@ void OW_IRQHandler(void)
 
 }
 
+
+
+static uint8_t CalculateCRC(uint8_t* data, uint8_t len)
+{
+  uint8_t crc=0;
+  uint8_t inbyte;
+
+    for (uint8_t i=0; i<len;i++)
+    {
+      uint8_t inbyte = data[i];
+      for (uint8_t j=0;j<8;j++)
+      {
+        uint8_t mix = (crc ^ inbyte) & 0x01;
+        crc >>= 1;
+        if (mix)
+          crc ^= 0x8C;
+
+        inbyte >>= 1;
+      }
+    }
+    return crc;
+}
 

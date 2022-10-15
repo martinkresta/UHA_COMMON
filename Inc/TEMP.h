@@ -14,7 +14,7 @@
 
 
 
-#define MAX_ERR_TO_INVALIDATE		3  // max number of consecutive err readouts to set value as invalid
+#define MAX_ERR_TO_INVALIDATE		5  // max number of consecutive err readouts to set value as invalid
 
 
 
@@ -67,11 +67,8 @@
 
 typedef enum
 {
-	ets_Valid,
-	ets_NotReady,
 	ets_NotValid,
-	ets_NotConnected,
-	ets_NotAssigned,
+	ets_Valid,
 }eTempStatus;
 
 

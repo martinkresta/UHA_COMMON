@@ -97,29 +97,17 @@ void TEMP_Update100ms(void)
 		{
 			mSensors[i].errorCnt++;  // just assume error to simplify the code :-)
 			// check the validity of last readout
-			if ((mSensors[i].rawTempC_10ths >= -300) && (mSensors[i].rawTempC_10ths <= 1250) )  // valid range from -30 to 125 deg C
+			if ((mSensors[i].rawTempC_10ths >= -300) && (mSensors[i].rawTempC_10ths <= 1250) && mSensors[i].status == ets_Valid)  // valid range from -30 to 125 deg C
 			{
-				mSensors[i].status = ets_Valid;
 				mSensors[i].errorCnt = 0;
 				mSensors[i].tempC_10ths = mSensors[i].rawTempC_10ths;  // copy the raw value to valid value
 				VAR_SetVariable(mSensors[i].VarId, mSensors[i].tempC_10ths, 1);
 			}
-			else
-			{
-			  // UI_LED_Life_SetMode(eUI_BLINKING_FAST);
-			}
-
-	/*		if ( mSensors[i].rawTempC_10ths == 0)
-         {
-            UI_LED_Life_SetMode(eUI_BLINKING_FAST);   // debug feature, to be removed
-         }*/
 
 			if (mSensors[i].errorCnt > MAX_ERR_TO_INVALIDATE)
 			{
-				mSensors[i].status = ets_NotValid;
 				mSensors[i].errorCnt = 0;
 				VAR_SetVariable(mSensors[i].VarId, mSensors[i].tempC_10ths, 0);  // set invalid flag also to variables..
-			//	Buzzer_SetMode(eLED_BEEP_ONCE);
 				// TBD LOG ERR
 			}
 
@@ -139,7 +127,8 @@ void TEMP_Update100ms(void)
 
 		OW_ReadSensor(mSensors[mReadId].owBusId,
 									&(mSensorsAddress[mSensors[mReadId].sensorId]),
-									&(mSensors[mReadId].rawTempC_10ths));
+									&(mSensors[mReadId].rawTempC_10ths),
+									&(mSensors[mReadId].status));
 		mReadId++;
 
 	}
@@ -176,7 +165,7 @@ uint8_t TEMP_AssignSensor(uint8_t sensorId, uint8_t varId, uint8_t busId)
 	{
 		mSensors[mNumOfAssignedSensors].sensorId = sensorId;
 		mSensors[mNumOfAssignedSensors].tempC_10ths = 0x8000;
-		mSensors[mNumOfAssignedSensors].status = ets_NotReady;
+		mSensors[mNumOfAssignedSensors].status = ets_NotValid;
 		mSensors[mNumOfAssignedSensors].VarId = varId;
 		mSensors[mNumOfAssignedSensors].owBusId = busId;
 		mSensors[mNumOfAssignedSensors].errorCnt = 0;
