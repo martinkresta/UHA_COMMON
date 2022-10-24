@@ -7,6 +7,7 @@
 
 
 #include "sensirion.h"
+#include "VARS.h"
 
 
 static sI2cSensor mSensors[SENS_MAX_SENSORS];
@@ -35,7 +36,7 @@ void SENS_Init(void)
 
   mSensors[0].BusHandle = &hi2c1;
   mSensors[0].Id = 0;
-  mSensors[0].Type = st_SCD4x;
+  mSensors[0].Type = st_SHT4x;
   scd_timer = 0;
 
   mSensors[1].BusHandle = &hi2c1;
@@ -43,13 +44,26 @@ void SENS_Init(void)
   mSensors[1].Type = st_SDP810_125;
 
 
-  SCD4x_SetAltitude(&(mSensors[0]), 411);
+  mSensors[2].BusHandle = &hi2c2;
+  mSensors[2].Id = 2;
+  mSensors[2].Type = st_SCD4x;
+  scd_timer = 0;
+
+  mSensors[3].BusHandle = &hi2c2;
+  mSensors[3].Id = 3;
+  mSensors[3].Type = st_SDP810_125;
+
+
+  SCD4x_SetAltitude(&(mSensors[2]), 411);
   HAL_Delay(10);
-  SCD4x_StartMeasurement(&(mSensors[0]));
+  SCD4x_StartMeasurement(&(mSensors[2]));
 
 
   HAL_Delay(50);
   SDPx_StartMeasurement(&(mSensors[1]));
+
+  HAL_Delay(50);
+  SDPx_StartMeasurement(&(mSensors[3]));
 
 }
 
@@ -91,11 +105,23 @@ void SENS_Update_1s(void)
   if(scd_timer >= 6)
   {
     scd_timer = 0;
-    SCD4x_Read(&(mSensors[0]),&co2, &temp, &hum);
+    co2 = -1;
+    SCD4x_Read(&(mSensors[2]),&co2, &temp, &hum);
+    VAR_SetVariable(VAR_CO2_RECU, co2, 1);
   }
 
-
+  dp = -1;
   SDPx_Read(&(mSensors[1]), &dp);
+  VAR_SetVariable(VAR_DP_RECU_F, dp, 1);
+  dp = -1;
+  SDPx_Read(&(mSensors[3]), &dp);
+  VAR_SetVariable(VAR_DP_RECU_W, dp, 1);
+  hum = -1;
+  Read_SHT4x(&(mSensors[1]),&temp, &hum);
+  VAR_SetVariable(VAR_RH_RECU_WH, hum, 1);
+
+
+
 
 }
 

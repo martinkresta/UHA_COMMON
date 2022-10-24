@@ -121,12 +121,18 @@
 #define  VAR_TEMP_RECU_WC  131
 
 #define  VAR_RH_RECU_FH   132
-#define  VAR_RH_RECU_FC   133
+#define  VAR_RH_RECU_WH   133
 
-#define  VAR_DP_RECU_F    134
-#define  VAR_DP_RECU_W    135
 
-#define  VAR_CURR_RECU_A  140
+#define  VAR_CO2_RECU     137
+#define  VAR_DP_RECU_F    138
+#define  VAR_DP_RECU_W    139
+
+
+#define  VAR_RECU_FAN_F   140
+#define  VAR_RECU_FAN_W   141
+#define  VAR_CURR_RECU_A  142
+
 
 
 #define  VAR_METEO_WIND_BURST  161
