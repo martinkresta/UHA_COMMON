@@ -8,6 +8,7 @@
 
 #include "sensirion.h"
 #include "VARS.h"
+#include "main.h"
 
 
 static sI2cSensor mSensors[SENS_MAX_SENSORS];
@@ -37,7 +38,6 @@ void SENS_Init(void)
   mSensors[0].BusHandle = &hi2c1;
   mSensors[0].Id = 0;
   mSensors[0].Type = st_SHT4x;
-  scd_timer = 0;
 
   mSensors[1].BusHandle = &hi2c1;
   mSensors[1].Id = 1;
@@ -52,6 +52,11 @@ void SENS_Init(void)
   mSensors[3].BusHandle = &hi2c2;
   mSensors[3].Id = 3;
   mSensors[3].Type = st_SDP810_125;
+
+  mSensors[4].BusHandle = &hi2c2;
+  mSensors[4].Id = 4;
+  mSensors[4].Type = st_SHT4x;
+
 
 
   SCD4x_SetAltitude(&(mSensors[2]), 411);
@@ -101,7 +106,7 @@ void SENS_Update_1s(void)
   scd_timer++;
 
 
-
+   // CO2
   if(scd_timer >= 6)
   {
     scd_timer = 0;
@@ -110,15 +115,33 @@ void SENS_Update_1s(void)
     VAR_SetVariable(VAR_CO2_RECU, co2, 1);
   }
 
+
+  // humidity and temperature  FH
+  hum = -1;
+  Read_SHT4x(&(mSensors[1]),&temp, &hum);
+  VAR_SetVariable(VAR_RH_RECU_FH, hum, 1);
+
+
+  // humidity and temperature  WH
+   hum = -1;
+   temp = -1;
+   Read_SHT4x(&(mSensors[4]),&temp, &hum);
+   VAR_SetVariable(VAR_TEMP_RECU_WH, temp, 1);
+   VAR_SetVariable(VAR_RH_RECU_WH, hum, 1);
+
+
+
+  // delta pressure
   dp = -1;
   SDPx_Read(&(mSensors[1]), &dp);
   VAR_SetVariable(VAR_DP_RECU_F, dp, 1);
   dp = -1;
   SDPx_Read(&(mSensors[3]), &dp);
   VAR_SetVariable(VAR_DP_RECU_W, dp, 1);
-  hum = -1;
-  Read_SHT4x(&(mSensors[1]),&temp, &hum);
-  VAR_SetVariable(VAR_RH_RECU_WH, hum, 1);
+
+
+
+
 
 
 
@@ -149,7 +172,7 @@ int16_t Read_SHT4x(sI2cSensor* sens, int16_t* temperature, int16_t* humidity)
   }
   temp_raw = (uint16_t)rxData[0] * 256 + rxData[1];
   rh_raw = (uint16_t)rxData[3] * 256 + rxData[4];
-  temp = -45 + (175 * temp_raw)/0xFFFF;
+  temp = -450 + (1750 * temp_raw)/0xFFFF;
   rh = -6 + (125 * rh_raw)/0xFFFF;
   if (rh > 100) rh = 100;
   if (rh < 0) rh = 0;
