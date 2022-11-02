@@ -12,6 +12,7 @@
 
 
 static sI2cSensor mSensors[SENS_MAX_SENSORS];
+static uint8_t mNumOfSensors;
 int16_t mDP;
 
 
@@ -34,42 +35,8 @@ uint16_t scd_timer;
 
 void SENS_Init(void)
 {
-
-  mSensors[0].BusHandle = &hi2c1;
-  mSensors[0].Id = 0;
-  mSensors[0].Type = st_SHT4x;
-
-  mSensors[1].BusHandle = &hi2c1;
-  mSensors[1].Id = 1;
-  mSensors[1].Type = st_SDP810_125;
-
-
-  mSensors[2].BusHandle = &hi2c2;
-  mSensors[2].Id = 2;
-  mSensors[2].Type = st_SCD4x;
   scd_timer = 0;
-
-  mSensors[3].BusHandle = &hi2c2;
-  mSensors[3].Id = 3;
-  mSensors[3].Type = st_SDP810_125;
-
-  mSensors[4].BusHandle = &hi2c2;
-  mSensors[4].Id = 4;
-  mSensors[4].Type = st_SHT4x;
-
-
-
-  SCD4x_SetAltitude(&(mSensors[2]), 411);
-  HAL_Delay(10);
-  SCD4x_StartMeasurement(&(mSensors[2]));
-
-
-  HAL_Delay(50);
-  SDPx_StartMeasurement(&(mSensors[1]));
-
-  HAL_Delay(50);
-  SDPx_StartMeasurement(&(mSensors[3]));
-
+  mNumOfSensors = 0;
 }
 
 void SENS_AddSensor(sI2cSensor sensor)
@@ -77,9 +44,25 @@ void SENS_AddSensor(sI2cSensor sensor)
  // assert(sensor.Id >= SENS_MAX_SENSORS);
   uint8_t i = sensor.Id;
 
-  mSensors[i] = sensor;
+  mSensors[mNumOfSensors] = sensor;
+
+  // for some types of sensors it is necessary to start the measurements
+  if(sensor.Type == st_SDP810_125)
+  {
+    SDPx_StartMeasurement(&sensor);
+  }
+
+  else if(sensor.Type == st_SCD4x)
+  {
+    SCD4x_SetAltitude(&sensor, 411);
+    HAL_Delay(5);
+    SCD4x_StartMeasurement(&sensor);
+  }
+
+  mNumOfSensors++;
 
 }
+
 
 int16_t SENS_ReadSensor(sI2cSensor* sens)
 {
@@ -103,50 +86,77 @@ void SENS_Update_1s(void)
 {
   int16_t co2,temp,hum,dp;
 
+  uint8_t i, valid;
+
   scd_timer++;
 
 
-   // CO2
-  if(scd_timer >= 6)
+  for(i = 0; i < mNumOfSensors; i++)
   {
-    scd_timer = 0;
+    hum = -1;
+    temp = -1;
     co2 = -1;
-    SCD4x_Read(&(mSensors[2]),&co2, &temp, &hum);
-    VAR_SetVariable(VAR_CO2_RECU, co2, 1);
+    dp = -1;
+
+    switch (mSensors[i].Type)
+    {
+      case  st_SHT4x:
+       if(0 == Read_SHT4x(&(mSensors[i]),&temp, &hum)) valid = 1;
+       else valid = 0;
+       if (temp == -1 && hum == -1)  valid = 0;
+       if(valid)
+       {
+         VAR_SetVariable(mSensors[i].VarId_1, temp, 1);
+         VAR_SetVariable(mSensors[i].VarId_2, hum, 1);
+       }
+       else
+       {
+         VAR_SetVariable(mSensors[i].VarId_1, temp, 0);
+         VAR_SetVariable(mSensors[i].VarId_2, hum, 0);
+       }
+       break;
+
+     case st_SCD4x:
+       if (scd_timer >= 6)
+       {
+         if(0 == SCD4x_Read(&(mSensors[2]),&co2, &temp, &hum)) valid = 1;
+         else valid = 0;
+         if (co2 == -1)  valid = 0;
+         if(valid)
+         {
+           VAR_SetVariable(mSensors[i].VarId_1, co2, 1);
+         }
+         else
+         {
+           VAR_SetVariable(mSensors[i].VarId_1, co2, 0);
+         }
+       }
+       break;
+
+     case st_SPS30:
+       // not supported
+       break;
+
+     case st_SDP810_125:
+       if(0 == SDPx_Read(&(mSensors[1]), &dp)) valid = 1;
+       else valid = 0;
+      // if (dp == -1)  valid = 0;
+       if(valid)
+       {
+         VAR_SetVariable(mSensors[i].VarId_1, dp, 1);
+       }
+       else
+       {
+         VAR_SetVariable(mSensors[i].VarId_1, dp, 0);
+       }
+       break;
+    }
   }
 
-
-  // humidity and temperature  FH
-  hum = -1;
-  Read_SHT4x(&(mSensors[1]),&temp, &hum);
-  VAR_SetVariable(VAR_RH_RECU_FH, hum, 1);
-
-
-  // humidity and temperature  WH
-   hum = -1;
-   temp = -1;
-   Read_SHT4x(&(mSensors[4]),&temp, &hum);
-   VAR_SetVariable(VAR_TEMP_RECU_WH, temp, 1);
-   VAR_SetVariable(VAR_RH_RECU_WH, hum, 1);
-
-
-
-  // delta pressure
-  dp = -1;
-  SDPx_Read(&(mSensors[1]), &dp);
-  VAR_SetVariable(VAR_DP_RECU_F, dp, 1);
-  dp = -1;
-  SDPx_Read(&(mSensors[3]), &dp);
-  VAR_SetVariable(VAR_DP_RECU_W, dp, 1);
-
-
-
-
-
-
-
-
+  scd_timer++;
+  if (scd_timer > 6) scd_timer = 0;
 }
+
 
 
 int16_t Read_SHT4x(sI2cSensor* sens, int16_t* temperature, int16_t* humidity)

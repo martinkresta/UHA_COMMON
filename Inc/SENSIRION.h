@@ -38,7 +38,6 @@ typedef struct
  uint8_t Id;
  e_SensType Type;
  I2C_HandleTypeDef* BusHandle;
- uint32_t ReadPeriod_s;
  int16_t VarId_1;
  int16_t VarId_2;
 }sI2cSensor;
