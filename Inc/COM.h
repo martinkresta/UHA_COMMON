@@ -19,6 +19,9 @@
 
 
 #define  CMD_BUTTON_STATE  0x100
+
+#define  CMD_AC_REMOTE_REQ 0x130
+
 #define  CMD_VAR_VALUE		 0x110
 #define  CMD_GESTURE			 0x120
 
@@ -39,6 +42,9 @@ int16_t COM_GetNetworkStatus(void);
 
 void COM_SendVariable(uint16_t varId);
 void COM_SendMessage(uint16_t cobid, uint8_t* data, uint8_t dlc);
+
+void COM_SendGesture(uint8_t gestureId);
+void COM_SendACRemoteRequest(uint16_t type, uint16_t request, uint16_t keepOnTime);
 
 void COM_AddStreamedVariable(uint16_t varId, uint16_t period);
 

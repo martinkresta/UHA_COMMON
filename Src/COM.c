@@ -142,6 +142,38 @@ void COM_AddStreamedVariable(uint16_t varId, uint16_t period)
 	}
 }
 
+
+// wrapper for sending gesture command
+void COM_SendGesture(uint8_t gestureId)
+{
+  uint8_t data[8];
+  data[0] = gestureId >> 8;
+  data[1] = gestureId & 0xFF;
+  data[2] = 0;
+  data[3] = 0;
+  data[4] = 0;
+  data[5] = 0;
+  data[5] = 0;
+  data[7] = 0;
+  COM_SendMessage(CMD_GESTURE, data, 8);
+}
+
+
+// wrapper for sending AC remote request command
+void COM_SendACRemoteRequest(uint16_t type, uint16_t request, uint16_t keepOnTime)
+{
+  uint8_t data[8];
+  data[0] = type >> 8;
+  data[1] = type & 0xFF;
+  data[2] = request >> 8;
+  data[3] = request & 0xFF;
+  data[4] = keepOnTime >> 8;
+  data[5] = keepOnTime & 0xFF;
+  data[5] = 0;
+  data[7] = 0;
+  COM_SendMessage(CMD_AC_REMOTE_REQ, data, 8);
+}
+
 /*Private methods*/
 static void SendVariable(uint16_t id)
 {

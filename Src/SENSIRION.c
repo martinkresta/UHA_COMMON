@@ -49,11 +49,13 @@ void SENS_AddSensor(sI2cSensor sensor)
   // for some types of sensors it is necessary to start the measurements
   if(sensor.Type == st_SDP810_125)
   {
+    HAL_Delay(5);
     SDPx_StartMeasurement(&sensor);
   }
 
   else if(sensor.Type == st_SCD4x)
   {
+    HAL_Delay(5);
     SCD4x_SetAltitude(&sensor, 411);
     HAL_Delay(5);
     SCD4x_StartMeasurement(&sensor);
@@ -88,7 +90,6 @@ void SENS_Update_1s(void)
 
   uint8_t i, valid;
 
-  scd_timer++;
 
 
   for(i = 0; i < mNumOfSensors; i++)
@@ -119,7 +120,7 @@ void SENS_Update_1s(void)
      case st_SCD4x:
        if (scd_timer >= 6)
        {
-         if(0 == SCD4x_Read(&(mSensors[2]),&co2, &temp, &hum)) valid = 1;
+         if(0 == SCD4x_Read(&(mSensors[i]),&co2, &temp, &hum)) valid = 1;
          else valid = 0;
          if (co2 == -1)  valid = 0;
          if(valid)
@@ -138,7 +139,7 @@ void SENS_Update_1s(void)
        break;
 
      case st_SDP810_125:
-       if(0 == SDPx_Read(&(mSensors[1]), &dp)) valid = 1;
+       if(0 == SDPx_Read(&(mSensors[i]), &dp)) valid = 1;
        else valid = 0;
       // if (dp == -1)  valid = 0;
        if(valid)

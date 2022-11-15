@@ -147,6 +147,40 @@ void RTC_SetTime(sDateTime dt)
  }
 
 
+ // TBD : Prepare set of function for comparing datetime , time, time in period, etc.  IT IS COMPLEX!!
+
+/* uint8_t RTC_IsNowBetweenDateTime(sDateTime from, sDateTime to)
+ {
+   sDateTime now = RTC_GetTime();
+   uint32_t f = RTC_GetUnixTime(from);
+   uint32_t t = RTC_GetUnixTime(to);
+   uint32_t n = RTC_GetUnixTime(now);
+
+   if(n >= f  && n <= t)
+   {
+     return 1;
+   }
+   else
+   {
+     return 0;
+   }
+ }
+
+
+uint32_t RTC_GetSecondsFromMidnight
+
+
+ void RTC_InitDateTime(sDatetime *dt)
+ {
+   dt->Year = 2000;
+   dt->Month = 0;
+   dt->Day = 0;
+   dt->Hour = 0;
+   dt->Minute = 0;
+   dt->Second = 0;
+ }*/
+
+
 /* USER CODE END 1 */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
