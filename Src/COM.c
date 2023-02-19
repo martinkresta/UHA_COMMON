@@ -174,6 +174,21 @@ void COM_SendACRemoteRequest(uint16_t type, uint16_t request, uint16_t keepOnTim
   COM_SendMessage(CMD_AC_REMOTE_REQ, data, 8);
 }
 
+// wrapper for sending RECU remote request command
+void COM_SendRecuRemoteRequest(eRecuRemoteReqMode mode, uint16_t duration)
+{
+  uint8_t data[8];
+  data[0] = mode >> 8;
+  data[1] = mode & 0xFF;
+  data[2] = duration >> 8;
+  data[3] = duration & 0xFF;
+  data[4] = 0;
+  data[5] = 0;
+  data[5] = 0;
+  data[7] = 0;
+  COM_SendMessage(CMD_RECU_REMOTE_REQ, data, 8);
+}
+
 /*Private methods*/
 static void SendVariable(uint16_t id)
 {

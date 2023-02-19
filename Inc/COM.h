@@ -33,6 +33,20 @@
 #define  STREAM_LIST_SIZE		70
 
 
+
+
+// redefinitions of some enums
+
+typedef enum
+{
+  errm_AutoControl = 0,   // cancelling remote request
+  errm_SligtOvepressure,
+  errm_MaxOverpressure,
+  errm_SlightUnderpressure,
+  errm_MaxUnderpressure
+}eRecuRemoteReqMode;
+
+
 void COM_Init(uint8_t nodeId);
 
 void COM_Update_10ms(void);
@@ -45,9 +59,13 @@ void COM_SendMessage(uint16_t cobid, uint8_t* data, uint8_t dlc);
 
 void COM_SendGesture(uint8_t gestureId);
 void COM_SendACRemoteRequest(uint16_t type, uint16_t request, uint16_t keepOnTime);
+void COM_SendRecuRemoteRequest(eRecuRemoteReqMode mode, uint16_t duration);
 
 void COM_AddStreamedVariable(uint16_t varId, uint16_t period);
 
 uint8_t COM_GetRxMessage( s_CanRxMsg* msg);
+
+
+
 
 #endif /* INC_COM_H_ */
