@@ -13,21 +13,21 @@
 
 
 // CAN ids
-#define  CMD_TM_DEV_ID  0x210
-#define  CMD_TM_STATUS  0x212
-#define  CMD_TM_VAR_VALUE  0x221
+//#define  CMD_TM_DEV_ID  0x210
+//#define  CMD_TM_STATUS  0x212
+//#define  CMD_TM_VAR_VALUE  0x221
 
 
-#define  CMD_BUTTON_STATE  0x100
+#define  CMD_BUTTON_STATE     0x100
+#define  CMD_VAR_VALUE		    0x110
+#define  CMD_GESTURE			    0x120
+#define  CMD_AC_REMOTE_REQ    0x130
+#define  CMD_RECU_REMOTE_REQ  0x140
 
-#define  CMD_AC_REMOTE_REQ 0x130
 
-#define  CMD_VAR_VALUE		 0x110
-#define  CMD_GESTURE			 0x120
 
-#define  CMD_BALANCE_INFO  0x310
-
-#define  CMD_RTC_SYNC  		 0x510
+#define  CMD_BALANCE_INFO     0x310
+#define  CMD_RTC_SYNC  		    0x510
 
 
 #define  STREAM_LIST_SIZE		70

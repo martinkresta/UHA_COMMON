@@ -71,6 +71,8 @@ void RTC_PrintDate(char* ts);
 
 void RTC_DataReceived(uint8_t* data);
 
+void RTC_SetUnixTime(uint32_t unixtime);
+
 
 
 /* USER CODE END Prototypes */

@@ -18,7 +18,7 @@
   */
 
 /* Includes ------------------------------------------------------------------*/
-#include <RTC.h>
+#include "RTC.h"
 #include <time.h>
 #include <stdio.h>
 #include "com.h"
