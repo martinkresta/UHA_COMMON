@@ -28,8 +28,13 @@
 #define GEST_WSCRC_WEST_UP					7
 #define GEST_WSCRC_WEST_DOWN				8
 
+//#define GEST_STOVE_START            9
+#define GEST_STOVE_AV_TOGGLE        10  // double press
+#define GEST_STOVE_AV_AUTO          11  // tripple press
+#define GEST_STOVE_CELANING         12  // long press
 
-#define MAX_NUM_OF_GESTURES  			10
+
+#define MAX_NUM_OF_GESTURES  			20
 
 
 #define SIM_PRESS_DURATION			100 //100ms
@@ -45,7 +50,7 @@
 
 #else
 
-#include "DI.h"
+#include "di.h"
 
 #endif
 
