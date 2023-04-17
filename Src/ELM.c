@@ -121,7 +121,10 @@ void ELM_ExtiCallback(uint16_t GPIO_Pin)
 		{
 			mMeters[i].Wh ++;
 			period = tick - mMeters[i].LastPulse;
-			mMeters[i].W = 3600000/period;
+			if(period > 0)
+			{
+			  mMeters[i].W = 3600000/period;
+			}
 			mMeters[i].LastPulse = tick;
 		}
 	}

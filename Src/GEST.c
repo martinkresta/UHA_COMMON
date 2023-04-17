@@ -126,7 +126,7 @@ void GEST_Update_10ms(void)
 
 	  if (mGestures[g]->state == egs_Pending)  // gesture detection period pending
     {
-	    mGestures[g]->timer += 10;   // increment the timer
+ 	    mGestures[g]->timer += 10;   // increment the timer
       switch (mGestures[g]->init.type)
       {
         case egt_MultiButton:
@@ -140,7 +140,7 @@ void GEST_Update_10ms(void)
           }
           break;
         case egt_MultiTouch:
-          if (mGestures[g]->touches = mGestures[g]->init.num_of_touches)
+          if (mGestures[g]->touches == mGestures[g]->init.num_of_touches)
           {
             if(mGestures[g]->timer >= mGestures[g]->init.timeout)  // if multitouch sequence was finished  (this allows to distinguish dual and triple pushes)
             {
