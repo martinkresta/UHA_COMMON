@@ -30,7 +30,7 @@ void GEST_Init(void)
 	mNumOfGestures = 0;
 	for (i = 0; i < MAX_NUM_OF_GESTURES; i++)
 	{
-		mGestures[i] == NULL;
+		mGestures[i] = NULL;
 	}
 }
 
