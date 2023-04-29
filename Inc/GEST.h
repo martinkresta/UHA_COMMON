@@ -34,6 +34,10 @@
 #define GEST_STOVE_CELANING         12  // long press
 
 
+#define GEST_IRIG_DUAL            13
+#define GEST_IRIG_TRIPLE          14
+
+
 #define MAX_NUM_OF_GESTURES  			20
 
 

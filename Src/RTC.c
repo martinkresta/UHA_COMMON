@@ -21,7 +21,6 @@
 #include "RTC.h"
 #include <time.h>
 #include <stdio.h>
-#include "com.h"
 #include "main.h"
 
 /* USER CODE END 0 */
