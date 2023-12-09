@@ -230,7 +230,7 @@ static void UI_Control (sUI *led,uint8_t led_switch)
 			}			
 			break;
 		case eUI_BLINK_ONCE:
-			if(led->Led_Cnt <= 2)  // blink for 20ms
+			if(led->Led_Cnt <= 5)  // blink for 50ms
 			{
 				if(led->Logic == eUIL_NEGATIVE)
 				{
@@ -284,7 +284,7 @@ static void UI_Control (sUI *led,uint8_t led_switch)
 					}
 					break;
 		case eUI_FLASH:
-			if(led->Led_Cnt < 2)
+			if(led->Led_Cnt < 5)
 			{
 				if(led->Logic == eUIL_NEGATIVE)
 				{
@@ -307,7 +307,7 @@ static void UI_Control (sUI *led,uint8_t led_switch)
 				}
 			}
 
-			if(led->Led_Cnt >= 200)
+			if(led->Led_Cnt >= 100)
 			{
 				led->Led_Cnt = 0;
 			}			
