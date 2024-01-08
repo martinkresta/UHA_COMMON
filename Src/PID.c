@@ -23,6 +23,7 @@ float PID_Update(tPid *pid, float error)
   float error_dt =  (error - pid->lastError)/pid->period_s;    // time derivation of error
 
 
+  pid->error = error;
   pid->pTerm = -error * pid->pFactor;
   pid->iTerm = pid->iTerm - error*pid->iFactor * pid->period_s;
   pid->dTerm = -error_dt * pid->dFactor;

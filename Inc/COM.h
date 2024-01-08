@@ -26,8 +26,12 @@
 
 
 
+
 #define  CMD_BALANCE_INFO     0x310
 #define  CMD_RTC_SYNC  		    0x510
+
+#define  CMD_UHAMON_RECIEVE   0x600
+#define  CMD_UHAMON_SEND      0x610
 
 
 #define  STREAM_LIST_SIZE		70
@@ -60,6 +64,8 @@ void COM_SendMessage(uint16_t cobid, uint8_t* data, uint8_t dlc);
 void COM_SendGesture(uint8_t gestureId);
 void COM_SendACRemoteRequest(uint16_t type, uint16_t request, uint16_t keepOnTime);
 void COM_SendRecuRemoteRequest(eRecuRemoteReqMode mode, uint16_t duration);
+// function  for sending UHAMON messages
+void COM_SendUhamonMessage(uint8_t* uhamonMsg);
 
 void COM_AddStreamedVariable(uint16_t varId, uint16_t period);
 

@@ -189,6 +189,16 @@ void COM_SendRecuRemoteRequest(eRecuRemoteReqMode mode, uint16_t duration)
   COM_SendMessage(CMD_RECU_REMOTE_REQ, data, 8);
 }
 
+
+// function  for sending UHAMON messages
+void COM_SendUhamonMessage(uint8_t* uhamonMsg)
+{
+  uint8_t data[8];
+  memcpy(data, uhamonMsg, 8);
+  data[0] = mNodeId;
+  COM_SendMessage(CMD_UHAMON_SEND + mNodeId, data, 8);
+}
+
 /*Private methods*/
 static void SendVariable(uint16_t id)
 {
