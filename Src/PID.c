@@ -21,6 +21,7 @@ void PID_Init(tPid *pid)
 float PID_Update(tPid *pid, float error)
 {
   float error_dt =  (error - pid->lastError)/pid->period_s;    // time derivation of error
+  pid->lastError = error;
 
 
   pid->error = error;

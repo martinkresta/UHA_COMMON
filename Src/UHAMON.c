@@ -141,6 +141,7 @@ static void Parameter_Read(uint16_t ParamId)      // parameter read process
 void UHAMON_Init()
 {
   Uhamon_Send = NULL;
+  mUhamonEnable = 1;
 }
 
 
