@@ -25,6 +25,7 @@ typedef struct
   float pTerm;
   float iTerm;
   float dTerm;
+  float rawAction;   // action before clamping
   float action;
   float minAction;
   float maxAction;

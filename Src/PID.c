@@ -21,25 +21,32 @@ void PID_Init(tPid *pid)
 float PID_Update(tPid *pid, float error)
 {
   float error_dt =  (error - pid->lastError)/pid->period_s;    // time derivation of error
+  float newIterm;     //  Temporary I term value - needed for antiwindup implementation
   pid->lastError = error;
 
 
   pid->error = error;
   pid->pTerm = -error * pid->pFactor;
-  pid->iTerm = pid->iTerm - error*pid->iFactor * pid->period_s;
+  //pid->iTerm = pid->iTerm - error*pid->iFactor * pid->period_s;
+  newIterm = pid->iTerm - error*pid->iFactor * pid->period_s;
   pid->dTerm = -error_dt * pid->dFactor;
-  pid->action = pid->pTerm + pid->iTerm + pid->dTerm;
+  pid->rawAction = pid->pTerm + pid->iTerm + pid->dTerm;
 
-  if (pid->action > pid->maxAction)
+  if (pid->rawAction > pid->maxAction)
   {
     pid->action = pid->maxAction;
-    pid->iTerm = pid->maxAction - pid->pTerm - pid->dTerm;  // anti windup
+   // pid->iTerm = pid->maxAction - pid->pTerm - pid->dTerm;  // anti windup
   }
 
-  if (pid->action < pid->minAction)
+  if (pid->rawAction < pid->minAction)
   {
     pid->action = pid->minAction;
-    pid->iTerm = pid->minAction + pid->pTerm + pid->dTerm;  // anti windup
+  //  pid->iTerm = pid->minAction - pid->pTerm - pid->dTerm;  // anti windup
+  }
+  else
+  {
+    pid->action = pid->rawAction;
+    pid->iTerm = newIterm;
   }
 
   return pid->action;
