@@ -43,7 +43,7 @@ int16_t VAR_GetVariable(uint16_t varId, uint16_t* invalid)
 }
 
 
-int16_t* VAR_GetVariablePointer(uint8_t varId, uint16_t* invalid)
+int16_t* VAR_GetVariablePointer(uint16_t varId, uint16_t* invalid)
 {
 	if (varId < NUM_OF_VARIABLES)
 	{
@@ -60,7 +60,7 @@ int16_t* VAR_GetVariablePointer(uint8_t varId, uint16_t* invalid)
 	}
 }
 
-void VAR_SetVariable(uint8_t varId, int16_t value, uint8_t valid)
+void VAR_SetVariable(uint16_t varId, int16_t value, uint8_t valid)
 {
 	if (varId < NUM_OF_VARIABLES)
 	{

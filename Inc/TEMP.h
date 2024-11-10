@@ -59,9 +59,10 @@
 #define      T_TECHM            37
 #define      T_IOBOARD_D            38
 #define      T_ELECON            39
+#define      T_ELECON_D            40
 
 
-#define NUM_OF_ALL_SENSORS 40
+#define NUM_OF_ALL_SENSORS 41
 
 
 
@@ -86,6 +87,6 @@ typedef struct
 void TEMP_Init(void);
 void TEMP_Update100ms(void);
 uint8_t TEMP_AddHwBus(uint8_t busId, GPIO_TypeDef* port, uint32_t pin);
-uint8_t TEMP_AssignSensor(uint8_t sensorId, uint8_t varId, uint8_t busId);
+uint8_t TEMP_AssignSensor(uint8_t sensorId, uint16_t varId, uint8_t busId);
 
 

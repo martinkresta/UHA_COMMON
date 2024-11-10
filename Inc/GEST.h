@@ -37,6 +37,8 @@
 #define GEST_IRIG_DUAL            13
 #define GEST_IRIG_TRIPLE          14
 
+#define GEST_ACAXPERT_TOGGLE      15
+
 
 #define MAX_NUM_OF_GESTURES  			20
 
@@ -44,19 +46,11 @@
 #define SIM_PRESS_DURATION			100 //100ms
 
 
-#ifndef _DIN_H
-
-	typedef enum
-	{
-		eDI_LO		= 0x00, /**< Digital input is reset. */
-		eDI_HI		= 0x01	/**< Digital input is set. */
-	}eDI;
-
-#else
-
-#include "di.h"
-
-#endif
+typedef enum
+{
+  eDI_LO		= 0x00,
+  eDI_HI		= 0x01
+}eDI;
 
 
 typedef enum

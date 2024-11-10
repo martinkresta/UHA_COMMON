@@ -14,6 +14,7 @@
  */
 
 #include "OW.h"
+#include "APP.h"
 #include "main.h"
 
 
@@ -81,7 +82,12 @@ void OW_Init(void)
 
 
 	OW_TIM->DIER |= TIM_DIER_UIE;
+#ifdef ELECON_D
+	OW_TIM->PSC = 0;
+#else if
 	OW_TIM->PSC = 4;
+#endif
+
 	OW_TIM->CR1 |= TIM_CR1_ARPE;  // preload enable
 
 	mTimReset[0] = DEL_RES_PULSE * TIM_CLK_PER_US;

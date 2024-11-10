@@ -46,7 +46,13 @@
 #define  VAR_MPPT_MAX_BAT_CURRENT_A10  48
 #define  VAR_MPPT_TEMP_C  49
 
-#define  VAR_SHUNT_CURRENT_A100  50
+#define  VAR_SHUNT_PCK1_CURRENT_A100  50
+#define  VAR_SHUNT_PCK2_CURRENT_A100  51
+
+#define  VAR_PACK5KWH_SOC  52                           // added for slave ELECON_D  (Battery pack in workshop)
+#define  VAR_PACK5KWH_VOLTAGE_V10  53
+#define  VAR_PACK5KWH_CURRENT_A10  54
+#define  VAR_PACK5KWH_ENERGY_WH  55
 
 #define  VAR_CONS_AC300_WH  60
 #define  VAR_CONS_AC3KW_WH  61
@@ -140,8 +146,8 @@
 #define  VAR_METEO_WIND_POW  163
 #define  VAR_METEO_WIND_ENERGY  164
 
-#define  VAR_CONS_EVSE_WH  170
-#define  VAR_POW_EVSE_W    171
+//#define  VAR_CONS_EVSE_WH  170
+//#define  VAR_POW_EVSE_W    171
 
 #define  VAR_BMS1_CELL1_MV  180
 #define  VAR_BMS1_CELL2_MV  181
@@ -212,7 +218,23 @@
 
 
 
-#define NUM_OF_VARIABLES		255
+#define  VAR_CONS_AXPERT_WH  260
+#define  VAR_CONS_EVSE_WH  261
+#define  VAR_CONS_WS_HEATING_WH  262
+
+#define  VAR_POW_AXPERT_W  270
+#define  VAR_POW_EVSE_W  271
+#define  VAR_POW_WS_HEATING_W  272
+
+#define  VAR_TEMP_DILNA  280
+#define  VAR_TEMP_AKUPACK1  281
+#define  VAR_TEMP_ELECON_D_BOARD  282
+
+
+
+
+
+#define NUM_OF_VARIABLES		300
 
 
 #define INVALID_FLAG				0x01
@@ -228,7 +250,7 @@ typedef struct
 void VAR_Init(void);
 
 int16_t VAR_GetVariable(uint16_t varId, uint16_t* invalid);
-int16_t* VAR_GetVariablePointer(uint8_t varId, uint16_t* invalid);
-void VAR_SetVariable(uint8_t varId, int16_t value, uint8_t valid);
+int16_t* VAR_GetVariablePointer(uint16_t varId, uint16_t* invalid);
+void VAR_SetVariable(uint16_t varId, int16_t value, uint8_t valid);
 
 #endif /* INC_VARS_H_ */

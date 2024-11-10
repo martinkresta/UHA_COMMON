@@ -45,6 +45,7 @@
 #define NODEID_ELECON					4
 #define NODEID_RECU 					5
 #define NODEID_EVSE						6
+#define NODEID_ELECON_D       7    // elecon dilna
 
 
 

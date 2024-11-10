@@ -14,6 +14,18 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
+#include "APP.h"
+#ifdef INC_EXTDI_H_
+#include "EXTDI.h"
+#endif
+
+#ifdef _DI_H_
+#include "DI.h"
+#endif
+
+
+
+
 
 
 sGesture* mGestures[MAX_NUM_OF_GESTURES];

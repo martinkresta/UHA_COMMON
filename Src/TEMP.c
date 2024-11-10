@@ -66,6 +66,7 @@ uint8_t mSensorsAddress[NUM_OF_ALL_SENSORS][8] =   // LSB on the left, transmit 
       {0x28,  0x60,  0x99,  0x7E,  0x0C,  0x0, 0x0,  0x9F},                      //T_TECHM
       {0x28,  0x4D,  0xA3,  0x7E,  0x0C,  0x0, 0x0,  0x5A},                      //T_IOBOARD_D
       {0x28,  0x56,  0x99,  0x7E,  0x0C,  0x0, 0x0,  0xC0},                      //T_ELECON
+      {0x28,  0x52,  0x99,  0x7E,  0x0C,  0x0, 0x0,  0x1C},                      //T_ELECON_D
 
 };
 
@@ -159,7 +160,7 @@ uint8_t TEMP_AddHwBus(uint8_t busId, GPIO_TypeDef* port, uint32_t pin)
 
 
 
-uint8_t TEMP_AssignSensor(uint8_t sensorId, uint8_t varId, uint8_t busId)
+uint8_t TEMP_AssignSensor(uint8_t sensorId, uint16_t varId, uint8_t busId)
 {
 	if (mNumOfAssignedSensors < NUM_OF_ALL_SENSORS)
 	{
