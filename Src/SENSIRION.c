@@ -80,6 +80,7 @@ int16_t SENS_ReadSensor(sI2cSensor* sens)
     case st_SDP810_125:
       break;
   }
+  return 0;
 }
 
 
