@@ -58,7 +58,7 @@ typedef struct{
 
 typedef struct
 {
-  int8_t RxData[BMS_DMA_REC_LENGTH +2];  // buffer for reception of raw BMS data
+  uint8_t RxData[BMS_DMA_REC_LENGTH +2];  // buffer for reception of raw BMS data
   uint8_t NewDataReady;
   uint8_t RecLength;
   uint8_t PackInfoValid;
@@ -87,7 +87,7 @@ uint16_t BMS_GetMinCellVoltage(sBMS* bms);
 uint8_t BMS_IsChargingEnabled(sBMS* bms);
 
 
-void BMS_UartRxCallback(USART_TypeDef uart, uint16_t reclength, sBMS* bms1, sBMS* bms2);
+void BMS_UartRxCallback(UART_HandleTypeDef *huart, uint16_t reclength, sBMS* bms1, sBMS* bms2);
 
 
 
