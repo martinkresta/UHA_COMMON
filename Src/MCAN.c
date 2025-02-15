@@ -169,6 +169,7 @@ uint8_t MCAN_GetRxMessage( s_CanRxMsg* msg)
 	{
 		return 1;
 	}
+
 	return 0;
 }
 
