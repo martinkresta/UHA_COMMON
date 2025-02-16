@@ -34,7 +34,7 @@
 #define  CMD_UHAMON_SEND      0x610
 
 
-#define  STREAM_LIST_SIZE		70
+#define  STREAM_LIST_SIZE		100
 
 
 

@@ -92,6 +92,7 @@ uint16_t BMS_GetMaxCellVoltage(sBMS* bms)
 // Gets minimal cell voltage
 uint16_t BMS_GetMinCellVoltage(sBMS* bms)
 {
+  if (!bms->Active) return 3600;    //
 	return bms->LiveData.MinCellVoltage_mV;
 }
 
