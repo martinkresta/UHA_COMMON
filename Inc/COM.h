@@ -10,6 +10,7 @@
 
 #include "main.h"
 #include "MCAN.h"
+#include "LOG.h"
 
 
 // CAN ids
@@ -33,6 +34,7 @@
 #define  CMD_UHAMON_RECIEVE   0x600
 #define  CMD_UHAMON_SEND      0x610
 
+#define  CMD_LOG_MSG  0x620
 
 #define  STREAM_LIST_SIZE		100
 
@@ -64,6 +66,7 @@ void COM_SendMessage(uint16_t cobid, uint8_t* data, uint8_t dlc);
 void COM_SendGesture(uint8_t gestureId);
 void COM_SendACRemoteRequest(uint16_t type, uint16_t request, uint16_t keepOnTime);
 void COM_SendRecuRemoteRequest(eRecuRemoteReqMode mode, uint16_t duration);
+void COM_SendLogMsg(eLogEvent event, uint8_t* logvalue);  // logvalue may be array of bytes or  32bit number
 // function  for sending UHAMON messages
 void COM_SendUhamonMessage(uint8_t* uhamonMsg);
 

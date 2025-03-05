@@ -83,6 +83,8 @@ void RTC_SetTime(sDateTime dt)
    HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, 0x32F2);
 	
 	// LOG_InsertGeneralMessage("Real Time Clock changed !");
+
+
  }
 
  

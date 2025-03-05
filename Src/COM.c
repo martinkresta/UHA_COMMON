@@ -12,6 +12,7 @@
 #include "COM.h"
 #include "VARS.h"
 #include "MCAN.h"
+#include "string.h"
 
 
 typedef struct
@@ -104,6 +105,8 @@ void COM_SendMessage(uint16_t cobid, uint8_t* data, uint8_t dlc)
 }
 
 
+
+
 void COM_AddStreamedVariable(uint16_t varId, uint16_t period)
 {
 	// go thru the list to find if entry already exists
@@ -189,6 +192,18 @@ void COM_SendRecuRemoteRequest(eRecuRemoteReqMode mode, uint16_t duration)
   COM_SendMessage(CMD_RECU_REMOTE_REQ, data, 8);
 }
 
+
+void COM_SendLogMsg(eLogEvent event, uint8_t* logvalue)  // logvalue may be array of up to 6 bytes
+{
+  uint8_t data[8];
+  data[0] = mNodeId;
+  data[1] = event;
+  if(logvalue != NULL)
+  {
+    memcpy(&(data[2]), logvalue, 6);
+  }
+  COM_SendMessage(CMD_LOG_MSG, data, 8);
+}
 
 // function  for sending UHAMON messages
 void COM_SendUhamonMessage(uint8_t* uhamonMsg)

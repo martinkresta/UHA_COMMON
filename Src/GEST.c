@@ -15,6 +15,7 @@
 #include "stdlib.h"
 #include "string.h"
 #include "APP.h"
+//#include "EXTDI.h"
 #ifdef INC_EXTDI_H_
 #include "EXTDI.h"
 #endif
