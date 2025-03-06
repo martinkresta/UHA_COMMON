@@ -13,8 +13,7 @@
 #define INC_GEST_H_
 
 #include "main.h"
-#include "app.h"
-
+//#include "app.h"
 
 
 // gesture actions
@@ -45,6 +44,8 @@
 
 #define SIM_PRESS_DURATION			100 //100ms
 
+
+//#define EDI_DEFINED
 
 typedef enum
 {

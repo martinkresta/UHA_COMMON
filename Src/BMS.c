@@ -44,6 +44,7 @@ void BMS_Update(sBMS* bms)
 	uint32_t UartError;
 	uint8_t* bmsData;
 
+	bmsData = NULL; // Initialize pointer!!!
 
 	if (bms->Com.NewDataReady)
 	{
@@ -58,15 +59,18 @@ void BMS_Update(sBMS* bms)
 			  bmsData = &(bms->Com.RxData[1]);
 			}
 
-			if (1 == IsChecksumValid(bmsData))
+			if(bmsData != NULL)
 			{
-				DecodeData(bmsData, bms);
-				CalculateCellStats(bms);
-				bms->Active = 1;
-			}
-			else
-			{
-				// TBD, report invalid checksum
+			  if (1 == IsChecksumValid(bmsData))
+        {
+          DecodeData(bmsData, bms);
+          CalculateCellStats(bms);
+          bms->Active = 1;
+        }
+        else
+        {
+          // TBD, report invalid checksum
+        }
 			}
 		}
 		else // incomplete message - ignore it

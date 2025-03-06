@@ -13,6 +13,11 @@
 #include "main.h"
 
 
+#define LOG_BCKP_FUNC_ID        5 //(RTC_BKP_DR5)
+#define LOG_BCKP_FAULT_ADDR    6 //  (RTC_BKP_DR6)
+
+
+
 typedef enum
 {
   eleStartup,
@@ -23,7 +28,8 @@ typedef enum
 
 
 
+
 void LOG_Startup(void);
-void LOG_SaveToBackup(uint32_t val);
+void LOG_SaveToBackup(uint8_t reg, uint32_t val);
 
 #endif
