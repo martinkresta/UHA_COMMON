@@ -85,6 +85,7 @@ uint16_t BMS_GetMaxCellVoltage(sBMS* bms);
 uint16_t BMS_GetMinCellVoltage(sBMS* bms);
 // gets status of charge enable relay
 uint8_t BMS_IsChargingEnabled(sBMS* bms);
+uint8_t BMS_IsDischargingEnabled(sBMS* bms);
 
 
 void BMS_UartRxCallback(UART_HandleTypeDef *huart, uint16_t reclength, sBMS* bms1, sBMS* bms2);

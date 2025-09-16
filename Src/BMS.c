@@ -107,6 +107,12 @@ uint8_t BMS_IsChargingEnabled(sBMS* bms)
 }
 
 
+uint8_t BMS_IsDischargingEnabled(sBMS* bms)
+{
+  if (!bms->Active) return 1;
+  return bms->LiveData.Status & BMS_STAT_ALLOW_DISCHARGE;
+}
+
 // *********  Private functions ************
 // checks the data in receive buffer, returns 1 if chksm is valid, 0 otherwise
 static uint8_t IsChecksumValid(uint8_t* data)

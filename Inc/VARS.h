@@ -21,7 +21,7 @@
 #define  VAR_LOAD_A100  12
 #define  VAR_CHARGING_A10  13
 #define  VAR_BAT_CURRENT_A10  14
-#define  VAR_CONS_TODAY_WH  15
+#define  VAR_CONS_TODAY_10WH  15
 #define  VAR_BAT_ENERGY_WH  16
 #define  VAR_LOAD_W  17
 #define  VAR_BAT_POWER_W  18
