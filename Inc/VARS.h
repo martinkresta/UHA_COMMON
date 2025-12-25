@@ -153,6 +153,7 @@
 #define  VAR_TEMP_DILNA  144
 #define  VAR_TEMP_AKUPACK1  145
 #define  VAR_TEMP_BOARD_ELECON_D  146
+#define  VAR_TEMP_KOLARNA  147
 
 
 
