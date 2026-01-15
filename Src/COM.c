@@ -38,6 +38,13 @@ void COM_Init(uint8_t nodeId)
 	mNodeId = nodeId;
 }
 
+
+uint8_t COM_GetNodeId(void)
+{
+  return mNodeId;
+}
+
+
 uint8_t COM_GetNodeStatus(uint8_t nodeId)
 {
 	if (MCAN_GetNodesPt()[nodeId].canStatus == eNS_NMT_RUN)
@@ -204,6 +211,21 @@ void COM_SendLogMsg(eLogEvent event, uint8_t* logvalue)  // logvalue may be arra
   }
   COM_SendMessage(CMD_LOG_MSG, data, 8);
 }
+
+
+void COM_SendSysInfo(eSysInfoType type, uint32_t value)
+{
+  uint8_t data[8];
+  memset (data, '0', 8);
+  data[0] = mNodeId;
+  data[1] = type;
+  memcpy(&(data[2]), &(value), 4);
+
+  COM_SendMessage(CMD_SYSINFO_RSP, data, 8);
+}
+
+
+
 
 // function  for sending UHAMON messages
 void COM_SendUhamonMessage(uint8_t* uhamonMsg)

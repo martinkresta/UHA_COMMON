@@ -39,6 +39,13 @@
 #define NMT 0x000
 #define HB	0x700
 
+
+#define NMT_CMD_START           0x01
+#define NMT_CMD_STOP            0x02
+#define NMT_CMD_PREOP           0x80
+#define NMT_CMD_RESET           0x81
+#define NMT_CMD_RESET_COM       0x82
+
 #define NODEID_IOBOARD_D			1
 #define NODEID_IOBOARD_U			2
 #define NODEID_TECHM		 			3

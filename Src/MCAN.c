@@ -118,6 +118,29 @@ void MCAN_Update_10ms(void)
 				mNodes[nodeId].timeout_cnt = 0;
 			}
 		}
+		if(msg.header.StdId == NMT)   // NMT command received
+		{
+		  if(msg.data[1] == mMcan.Node.nodeId)
+		  {
+		    switch (msg.data[0])  // NMT commants
+		    {
+		      case NMT_CMD_START:
+		        break;
+		      case NMT_CMD_STOP:
+            break;
+		      case NMT_CMD_PREOP:
+            break;
+		      case NMT_CMD_RESET:
+		        NVIC_SystemReset();
+            break;
+		      case NMT_CMD_RESET_COM:
+		        NVIC_SystemReset();
+            break;
+		    }
+		  }
+		}
+
+
 	}
 
 	// Check timeout of all nodes
