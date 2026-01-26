@@ -49,7 +49,7 @@
 
 typedef enum
 {
-  esit_ASW_version = 0,   // cancelling remote request
+  esit_ASW_version = 0,
   esit_UpTime,
   esit_HWID
 }eSysInfoType;
