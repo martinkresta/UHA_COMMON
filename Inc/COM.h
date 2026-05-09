@@ -37,8 +37,8 @@
 #define  CMD_LOG_MSG  0x620
 
 
-#define CMD_SYSINFO_REQ       0x550
-#define CMD_SYSINFO_RSP       0x560
+#define  CMD_SYSINFO_REQ       0x550
+#define  CMD_SYSINFO_RSP       0x560
 
 #define  STREAM_LIST_SIZE		100
 
