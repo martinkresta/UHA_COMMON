@@ -1,0 +1,1253 @@
+# uha_vars.yaml — single source of truth for UHA shared variables (VARS)
+# DRAFT v0 generated 2026-10-31, reviewed by Martin from VARS.h + COM_AddStreamedVariable / VAR_Get/SetVariable
+# in all ASW projects + ELECON SCOM.c (RPi forward list). Review before use.
+#
+# Conventions
+#   name          new name (physical units, no scaling suffix)
+#   legacy        old VARS.h define (int16 format, kept during migration)
+#   legacy_scale  old raw int16 = physical value * legacy_scale (omitted when 1)
+#   type          float (default) | int32 | uint32 | bool | enum
+#   producer      node that publishes the value
+#   period_ms     publish period (today's COM_AddStreamedVariable value)
+#   on_can: false today NOT on CAN, only forwarded ELECON -> RPi over serial
+#   receivers     documentation only (who reads it today); FW stores everything
+#   ELM rule      ELM.c writes power to (energy id + 10): CONS_x_WH id N -> POW_x_W id N+10 (validator checks it)
+
+version: 0
+
+nodes:
+  IOBOARD_D: 1
+  IOBOARD_U: 2
+  TECHM: 3
+  ELECON: 4
+  RECU: 5
+  EVSE: 6   # not on the bus
+  ELECON_D: 7
+  RPI: 15   # gateway, receive only
+
+defaults:
+  type: float
+  timeout_ms: auto        # 3x period_ms, then invalid at receiver
+  on_can: true
+
+enums:
+  ElHeaterState: {0: Heating, 1: TempReached, 2: NoFreePower, 3: LowSOC, 4: 48VFail, 5: TankOvertemperature,
+                  6: BoardOvertemperature, 7: InvalidInputs, 8: EleconComError, 9: SwitchError, 10: BalanceSupport, 11: ComfortHeat}
+
+groups:
+
+
+  global_energy:   # Global energy balance – GEMON (ELECON), combines both storages
+    producer: ELECON
+    vars:
+      - id: 8
+        name: SOLAR_POWER_W
+        legacy: VAR_SOLAR_POWER_W
+        unit: "W"
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 9
+        name: SOLAR_ENERGY_TODAY_WH
+        legacy: VAR_SOLAR_ENERGY_TODAY_10WH
+        unit: "Wh"
+        legacy_scale: 0.1
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 10
+        name: BAT_SOC
+        legacy: VAR_BAT_SOC
+        unit: "%"
+        period_ms: 1000
+        receivers: [ELECON_D, RECU, TECHM, RPI]
+      - id: 11
+        name: BAT_VOLTAGE_V
+        legacy: VAR_BAT_VOLTAGE_V10
+        unit: "V"
+        legacy_scale: 10
+        period_ms: 1000
+        receivers: [TECHM, RPI]
+      - id: 12
+        name: LOAD_A
+        legacy: VAR_LOAD_A100
+        unit: "A"
+        legacy_scale: 100
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 13
+        name: CHARGING_A
+        legacy: VAR_CHARGING_A10
+        unit: "A"
+        legacy_scale: 10
+        period_ms: 1000
+        receivers: [TECHM, RPI]
+      - id: 14
+        name: BAT_CURRENT_A
+        legacy: VAR_BAT_CURRENT_A10
+        unit: "A"
+        legacy_scale: 10
+        period_ms: 1000
+        receivers: [TECHM, RPI]
+      - id: 15
+        name: CONS_TODAY_WH
+        legacy: VAR_CONS_TODAY_10WH
+        unit: "Wh"
+        legacy_scale: 0.1
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 16
+        name: BAT_ENERGY_WH
+        legacy: VAR_BAT_ENERGY_WH
+        unit: "Wh"
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 17
+        name: LOAD_W
+        legacy: VAR_LOAD_W
+        unit: "W"
+        period_ms: 1000
+        on_can: false
+        receivers: [RPI]
+      - id: 18
+        name: BAT_POWER_W
+        legacy: VAR_BAT_POWER_W
+        unit: "W"
+        period_ms: 5000
+        on_can: false
+        receivers: [RPI]
+
+  bms1:   # Workshop pack – JK-BMS 251 Ah (ELECON_D)
+    producer: ELECON_D
+    vars:
+      - id: 20
+        name: BMS1_SOC
+        legacy: VAR_BMS1_SOC
+        unit: "%"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 21
+        name: BMS1_CURRENT_A
+        legacy: VAR_BMS1_CURRENT_A10
+        unit: "A"
+        legacy_scale: 10
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 22
+        name: BMS1_VOLTAGE_V
+        legacy: VAR_BMS1_VOLTAGE_V10
+        unit: "V"
+        legacy_scale: 10
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 23
+        name: BMS1_ENERGY_STORED_WH
+        legacy: VAR_BMS1_ENERGY_STORED_WH
+        unit: "Wh"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 24
+        name: BMS1_TODAY_ENERGY_WH
+        legacy: VAR_BMS1_TODAY_ENERGY_WH
+        unit: "Wh"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 180            # 180..195
+        name: BMS1_CELL_V
+        count: 16
+        legacy: VAR_BMS1_CELL{1..16}_MV
+        unit: "V"
+        legacy_scale: 1000
+        period_ms: 5000
+        receivers: [RPI]
+      - id: 196            # 196..211
+        name: BMS1_CELL_TEMP_C
+        count: 16
+        legacy: VAR_BMS1_CELL{1..16}_C
+        unit: "°C"
+        period_ms: 5000
+        receivers: [RPI]
+
+  bms2:   # House pack – BMS (ELECON, LEMON Bms2)
+    producer: ELECON
+    vars:
+      - id: 30
+        name: BMS2_SOC
+        legacy: VAR_BMS2_SOC
+        unit: "%"
+        period_ms: 1000
+        on_can: false
+        receivers: [RPI]
+      - id: 31
+        name: BMS2_CURRENT_A
+        legacy: VAR_BMS2_CURRENT_A10
+        unit: "A"
+        legacy_scale: 10
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 32
+        name: BMS2_VOLTAGE_V
+        legacy: VAR_BMS2_VOLTAGE_V10
+        unit: "V"
+        legacy_scale: 10
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 33
+        name: BMS2_ENERGY_STORED_WH
+        legacy: VAR_BMS2_ENERGY_STORED_WH
+        unit: "Wh"
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 34
+        name: BMS2_TODAY_ENERGY_WH
+        legacy: VAR_BMS2_TODAY_ENERGY_WH
+        unit: "Wh"
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 220            # 220..235
+        name: BMS2_CELL_V
+        count: 16
+        legacy: VAR_BMS2_CELL{1..16}_MV
+        unit: "V"
+        legacy_scale: 1000
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 236            # 236..251
+        name: BMS2_CELL_TEMP_C
+        count: 16
+        legacy: VAR_BMS2_CELL{1..16}_C
+        unit: "°C"
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+
+  bms3:   # House pack – BMS (ELECON, LEMON Bms1)
+    producer: ELECON
+    vars:
+      - id: 35
+        name: BMS3_SOC
+        legacy: VAR_BMS3_SOC
+        unit: "%"
+        period_ms: 1000
+        on_can: false
+        receivers: [RPI]
+      - id: 36
+        name: BMS3_CURRENT_A
+        legacy: VAR_BMS3_CURRENT_A10
+        unit: "A"
+        legacy_scale: 10
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 37
+        name: BMS3_VOLTAGE_V
+        legacy: VAR_BMS3_VOLTAGE_V10
+        unit: "V"
+        legacy_scale: 10
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 38
+        name: BMS3_ENERGY_STORED_WH
+        legacy: VAR_BMS3_ENERGY_STORED_WH
+        unit: "Wh"
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 39
+        name: BMS3_TODAY_ENERGY_WH
+        legacy: VAR_BMS3_TODAY_ENERGY_WH
+        unit: "Wh"
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 350            # 350..365
+        name: BMS3_CELL_V
+        count: 16
+        legacy: VAR_BMS3_CELL{1..16}_MV
+        unit: "V"
+        legacy_scale: 1000
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 366            # 366..381
+        name: BMS3_CELL_TEMP_C
+        count: 16
+        legacy: VAR_BMS3_CELL{1..16}_C
+        unit: "°C"
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+
+  mppt:   # Victron SmartSolar MPPT (ELECON)
+    producer: ELECON
+    vars:
+      - id: 40
+        name: MPPT_BAT_CURRENT_A
+        legacy: VAR_MPPT_BAT_CURRENT_A10
+        unit: "A"
+        legacy_scale: 10
+        period_ms: 1000
+        on_can: false
+        receivers: [RPI]
+      - id: 41
+        name: MPPT_BAT_VOLTAGE_V
+        legacy: VAR_MPPT_BAT_VOLTAGE_V100
+        unit: "V"
+        legacy_scale: 100
+        period_ms: 1000
+        on_can: false
+        receivers: [RPI]
+      - id: 42
+        name: MPPT_YIELD_TODAY_WH
+        legacy: VAR_MPPT_YIELD_TODAY_10WH
+        unit: "Wh"
+        legacy_scale: 0.1
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 43
+        name: MPPT_MAX_TODAY_W
+        legacy: VAR_MPPT_MAX_TODAY_W
+        unit: "W"
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 44
+        name: MPPT_SOLAR_POWER_W
+        legacy: VAR_MPPT_SOLAR_POWER_W
+        unit: "W"
+        period_ms: 1000
+        on_can: false
+        receivers: [RPI]
+      - id: 45
+        name: MPPT_SOLAR_VOLTAGE_V
+        legacy: VAR_MPPT_SOLAR_VOLTAGE_V100
+        unit: "V"
+        legacy_scale: 100
+        period_ms: 1000
+        receivers: [ELECON_D, TECHM, RPI]
+      - id: 46
+        name: MPPT_SOLAR_CURRENT_A
+        legacy: VAR_MPPT_SOLAR_CURRENT_A10
+        unit: "A"
+        legacy_scale: 10
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 47
+        name: MPPT_SOLAR_MAX_VOLTAGE_V
+        legacy: VAR_MPPT_SOLAR_MAX_VOLTAGE_V100
+        unit: "V"
+        legacy_scale: 100
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 48
+        name: MPPT_MAX_BAT_CURRENT_A
+        legacy: VAR_MPPT_MAX_BAT_CURRENT_A10
+        unit: "A"
+        legacy_scale: 10
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 49
+        name: MPPT_TEMP_C
+        legacy: VAR_MPPT_TEMP_C
+        unit: "°C"
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+
+  shunt:   # Battery shunts
+    producer: ELECON_D
+    vars:
+      - id: 50
+        name: SHUNT_PCK1_CURRENT_A
+        legacy: VAR_SHUNT_PCK1_CURRENT_A100
+        unit: "A"
+        legacy_scale: 100
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 51
+        name: SHUNT_PCK2_CURRENT_A
+        legacy: VAR_SHUNT_PCK2_CURRENT_A100
+        unit: "A"
+        legacy_scale: 100
+        producer: ELECON
+        period_ms: 5000
+        on_can: false
+        receivers: [RPI]
+
+  storage1:   # Local storage – house (LEMON in ELECON)
+    producer: ELECON
+    vars:
+      - id: 300
+        name: STRG1_SOC
+        legacy: VAR_STRG1_SOC
+        unit: "%"
+        legacy_scale: 100
+        period_ms: 2000
+        on_can: false
+        receivers: [RPI]
+      - id: 301
+        name: STRG1_POWER_W
+        legacy: VAR_STRG1_POWER_W
+        unit: "W"
+        period_ms: 2000
+        on_can: false
+        receivers: [RPI]
+      - id: 302
+        name: STRG1_CURRENT_A
+        legacy: VAR_STRG1_CURRENT_A10
+        unit: "A"
+        legacy_scale: 10
+        period_ms: 2000
+        on_can: false
+        receivers: [RPI]
+      - id: 303
+        name: STRG1_ENERGY_WH
+        legacy: VAR_STRG1_ENERGY_WH
+        unit: "Wh"
+        period_ms: 2000
+        on_can: false
+        receivers: [RPI]
+      - id: 304
+        name: STRG1_OPT_CHARGING_A
+        legacy: VAR_STRG1_OPT_CHARGING_A
+        unit: "A"
+        period_ms: 2000
+        on_can: false
+        receivers: [RPI]
+      - id: 305
+        name: STRG1_CAPACITY_AH
+        legacy: VAR_STRG1_CAPACITY_AH
+        unit: "Ah"
+        period_ms: 2000
+        on_can: false
+        receivers: [RPI]
+      - id: 306
+        name: STRG1_BALANCED_TODAY
+        legacy: VAR_STRG1_BALANCED_TODAY
+        type: bool
+        period_ms: 2000
+        on_can: false
+        receivers: [RPI]
+      - id: 307
+        name: STRG1_VOLTAGE_V
+        legacy: VAR_STRG1_VOLTAGE_V10
+        unit: "V"
+        legacy_scale: 10
+        period_ms: 2000
+        on_can: false
+        receivers: [RPI]
+      - id: 308
+        name: LLOAD1_POWER_W
+        legacy: VAR_LLOAD1_POWER_W
+        unit: "W"
+        period_ms: 2000
+        on_can: false
+        receivers: [RPI]
+      - id: 309
+        name: LLOAD1_CONS_WH
+        legacy: VAR_LLOAD1_CONS_WH
+        unit: "Wh"
+        period_ms: 2000
+        on_can: false
+        receivers: [RPI]
+      - id: 310
+        name: LPV1_POWER_W
+        legacy: VAR_LPV1_POWER_W
+        unit: "W"
+        period_ms: 2000
+        on_can: false
+        receivers: [RPI]
+      - id: 311
+        name: LPV1_PROD_WH
+        legacy: VAR_LPV1_PROD_WH
+        unit: "Wh"
+        period_ms: 2000
+        on_can: false
+        receivers: [RPI]
+
+  storage2:   # Local storage – workshop (LEMON in ELECON_D)
+    producer: ELECON_D
+    vars:
+      - id: 320
+        name: STRG2_SOC
+        legacy: VAR_STRG2_SOC
+        unit: "%"
+        legacy_scale: 100
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 321
+        name: STRG2_POWER_W
+        legacy: VAR_STRG2_POWER_W
+        unit: "W"
+        period_ms: 1000
+        receivers: [ELECON, RPI]
+      - id: 322
+        name: STRG2_CURRENT_A
+        legacy: VAR_STRG2_CURRENT_A10
+        unit: "A"
+        legacy_scale: 10
+        period_ms: 1000
+        receivers: [ELECON, RPI]
+      - id: 323
+        name: STRG2_ENERGY_WH
+        legacy: VAR_STRG2_ENERGY_WH
+        unit: "Wh"
+        period_ms: 1000
+        receivers: [ELECON, RPI]
+      - id: 324
+        name: STRG2_OPT_CHARGING_A
+        legacy: VAR_STRG2_OPT_CHARGING_A
+        unit: "A"
+        period_ms: 1000
+        receivers: [ELECON, RPI]
+      - id: 325
+        name: STRG2_CAPACITY_AH
+        legacy: VAR_STRG2_CAPACITY_AH
+        unit: "Ah"
+        period_ms: 1000
+        receivers: [ELECON, RPI]
+      - id: 326
+        name: STRG2_BALANCED_TODAY
+        legacy: VAR_STRG2_BALANCED_TODAY
+        type: bool
+        period_ms: 1000
+        receivers: [ELECON, RPI]
+      - id: 327
+        name: STRG2_VOLTAGE_V
+        legacy: VAR_STRG2_VOLTAGE_V10
+        unit: "V"
+        legacy_scale: 10
+        period_ms: 1000
+        receivers: [ELECON, RPI]
+      - id: 328
+        name: LLOAD2_POWER_W
+        legacy: VAR_LLOAD2_POWER_W
+        unit: "W"
+        period_ms: 1000
+        receivers: [ELECON, RPI]
+      - id: 329
+        name: LLOAD2_CONS_WH
+        legacy: VAR_LLOAD2_CONS_WH
+        unit: "Wh"
+        period_ms: 1000
+        receivers: [ELECON, RPI]
+      - id: 330
+        name: LPV2_POWER_W
+        legacy: VAR_LPV2_POWER_W
+        unit: "W"
+        period_ms: 1000
+        receivers: [ELECON, RPI]
+      - id: 331
+        name: LPV2_PROD_WH
+        legacy: VAR_LPV2_PROD_WH
+        unit: "Wh"
+        period_ms: 1000
+        receivers: [ELECON, RPI]
+
+
+  axpert:   # Axpert 8 kW inverter (ELECON_D)
+    producer: ELECON_D
+    vars:
+      - id: 278
+        name: AXPERT_TEMP_C
+        legacy: VAR_AXPERT_TEMP_C
+        unit: "°C"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 279
+        name: AXPERT_AC_POWER_W
+        legacy: VAR_AXPERT_AC_POWER_W
+        unit: "W"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 280
+        name: AXPERT_BAT_CHARGING_A
+        legacy: VAR_AXPERT_BAT_CHARGING_A
+        unit: "A"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 281
+        name: AXPERT_BAT_DISCHARGING_A
+        legacy: VAR_AXPERT_BAT_DISCHARGING_A
+        unit: "A"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 282
+        name: AXPERT_BAT_VOLTAGE_V
+        legacy: VAR_AXPERT_BAT_VOLTAGE_V10
+        unit: "V"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 283
+        name: AXPERT_PVS1_W
+        legacy: VAR_AXPERT_PVS1_W
+        unit: "W"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 284
+        name: AXPERT_PVS1_V
+        legacy: VAR_AXPERT_PVS1_V10
+        unit: "V"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 285
+        name: AXPERT_PVS1_A
+        legacy: VAR_AXPERT_PVS1_A10
+        unit: "A"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 286
+        name: AXPERT_PVS2_W
+        legacy: VAR_AXPERT_PVS2_W
+        unit: "W"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 287
+        name: AXPERT_PVS2_V
+        legacy: VAR_AXPERT_PVS2_V10
+        unit: "V"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 288
+        name: AXPERT_PVS2_A
+        legacy: VAR_AXPERT_PVS2_A10
+        unit: "A"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 290
+        name: AXPERT_BAT_POWER_W
+        legacy: VAR_AXPERT_BAT_POWER_W
+        unit: "W"
+        period_ms: 5000
+        receivers: [RPI]
+      - id: 291
+        name: AXPERT_BAT_CURRENT_A
+        legacy: VAR_AXPERT_BAT_CURRENT_A
+        unit: "A"
+        period_ms: 5000
+        receivers: [RPI]
+      - id: 292
+        name: AXPERT_SOLAR_W
+        legacy: VAR_AXPERT_SOLAR_W
+        unit: "W"
+        period_ms: 5000
+        receivers: [RPI]
+      - id: 293
+        name: AXPERT_ENERGY_TODAY_WH
+        legacy: VAR_AXPERT_ENERGY_TODAY_WH
+        unit: "Wh"
+        period_ms: 5000
+        receivers: [RPI]
+      - id: 294
+        name: AXPERT_LOAD_W
+        legacy: VAR_AXPERT_LOAD_W
+        unit: "W"
+        period_ms: 5000
+        receivers: [RPI]
+
+  el_meters:   # Electricity meters (ELM). Note: ELM writes power to energy-ID + 10
+    producer: IOBOARD_D
+    vars:
+      - id: 60
+        name: CONS_AC300_WH
+        legacy: VAR_CONS_AC300_WH
+        unit: "Wh"
+        producer: ELECON
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 61
+        name: CONS_AC3KW_WH
+        legacy: VAR_CONS_AC3KW_WH
+        unit: "Wh"
+        producer: ELECON
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 62
+        name: CONS_AC5KW_WH
+        legacy: VAR_CONS_AC5KW_WH
+        unit: "Wh"
+        producer: ELECON
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 63
+        name: CONS_FRIDGE_WH
+        legacy: VAR_CONS_FRIDGE_WH
+        unit: "Wh"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 64
+        name: CONS_KITCHEN_WH
+        legacy: VAR_CONS_KITCHEN_WH
+        unit: "Wh"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 65
+        name: CONS_WASCHMACHINE_WH
+        legacy: VAR_CONS_WASCHMACHINE_WH
+        unit: "Wh"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 66
+        name: CONS_OTHER_WH
+        legacy: VAR_CONS_OTHER_WH
+        unit: "Wh"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 67
+        name: CONS_TECHM_WH
+        legacy: VAR_CONS_TECHM_WH
+        unit: "Wh"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 68
+        name: CONS_KITCHEN_A_WH
+        legacy: VAR_CONS_KITCHEN_A_WH
+        unit: "Wh"
+        on_can: false
+      - id: 69
+        name: CONS_KITCHEN_B_WH
+        legacy: VAR_CONS_KITCHEN_B_WH
+        unit: "Wh"
+        on_can: false
+      - id: 70
+        name: POW_AC300_W
+        legacy: VAR_POW_AC300_W
+        unit: "W"
+        producer: ELECON
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 71
+        name: POW_AC3KW_W
+        legacy: VAR_POW_AC3KW_W
+        unit: "W"
+        producer: ELECON
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 72
+        name: POW_AC5KW_W
+        legacy: VAR_POW_AC5KW_W
+        unit: "W"
+        producer: ELECON
+        period_ms: 3000
+        on_can: false
+        receivers: [RPI]
+      - id: 73
+        name: POW_FRIDGE_W
+        legacy: VAR_POW_FRIDGE_W
+        unit: "W"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 74
+        name: POW_KITCHEN_W
+        legacy: VAR_POW_KITCHEN_W
+        unit: "W"
+        period_ms: 1000
+        receivers: [ELECON, RPI]
+      - id: 75
+        name: POW_WASCHMACHINE_W
+        legacy: VAR_POW_WASCHMACHINE_W
+        unit: "W"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 76
+        name: POW_OTHER_W
+        legacy: VAR_POW_OTHER_W
+        unit: "W"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 77
+        name: POW_TECHM_W
+        legacy: VAR_POW_TECHM_W
+        unit: "W"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 78
+        name: POW_KITCHEN_A_W
+        legacy: VAR_POW_KITCHEN_A_W
+        unit: "W"
+        on_can: false
+      - id: 79
+        name: POW_KITCHEN_B_W
+        legacy: VAR_POW_KITCHEN_B_W
+        unit: "W"
+        on_can: false
+      - id: 260
+        name: CONS_AXPERT_WH
+        legacy: VAR_CONS_AXPERT_WH
+        unit: "Wh"
+        producer: ELECON_D
+        period_ms: 5000
+        receivers: [RPI]
+      - id: 261
+        name: CONS_EVSE_WH
+        legacy: VAR_CONS_EVSE_WH
+        unit: "Wh"
+        producer: ELECON_D
+        period_ms: 5000
+        receivers: [RPI]
+      - id: 262
+        name: CONS_WS_HEATING_WH
+        legacy: VAR_CONS_WS_HEATING_WH
+        unit: "Wh"
+        producer: ELECON_D
+        period_ms: 5000
+        receivers: [RPI]
+      - id: 270
+        name: POW_AXPERT_W
+        legacy: VAR_POW_AXPERT_W
+        unit: "W"
+        producer: ELECON_D
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 271
+        name: POW_EVSE_W
+        legacy: VAR_POW_EVSE_W
+        unit: "W"
+        producer: ELECON_D
+        period_ms: 5000
+        receivers: [RPI]
+      - id: 272
+        name: POW_WS_HEATING_W
+        legacy: VAR_POW_WS_HEATING_W
+        unit: "W"
+        producer: ELECON_D
+        period_ms: 5000
+        receivers: [RPI]
+
+  el_heater:   # Electric heater in accumulation tank (TECHM ELHEATER)
+    producer: TECHM
+    vars:
+      - id: 80
+        name: EL_HEATER_STATUS
+        legacy: VAR_EL_HEATER_STATUS
+        type: enum
+        enum: ElHeaterState
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 81
+        name: EL_HEATER_LOAD_A
+        legacy: VAR_EL_HEATER_POWER
+        unit: "A"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 82
+        name: EL_HEATER_CURRENT_A
+        legacy: VAR_EL_HEATER_CURRENT
+        unit: "A"
+        legacy_scale: 100
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 83
+        name: EL_HEATER_CONS_WH
+        legacy: VAR_EL_HEATER_CONS
+        unit: "Wh"
+        period_ms: 3000
+        receivers: [RPI]
+
+  heating:   # Heating, boiler, heat energy (TECHM)
+    producer: TECHM
+    vars:
+      - id: 85
+        name: HEAT_TOTAL_WH
+        legacy: VAR_HEAT_TOTAL_WH
+        unit: "Wh"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 86
+        name: HEAT_HEATING_WH
+        legacy: VAR_HEAT_HEATING_WH
+        unit: "Wh"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 98
+        name: BOILER_POWER_W
+        legacy: VAR_BOILER_POWER
+        unit: "W"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 99
+        name: BOILER_HEAT
+        legacy: VAR_BOILER_HEAT
+        unit: "Wh"
+        period_ms: 3000
+        receivers: [RPI]
+
+  water:   # Water meters (TECHM WM)
+    producer: TECHM
+    vars:
+      - id: 90
+        name: FLOW_COLD_LPM
+        legacy: VAR_FLOW_COLD
+        unit: "l/min"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 91
+        name: FLOW_HOT_LPM
+        legacy: VAR_FLOW_HOT
+        unit: "l/min"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 92
+        name: CONS_COLD_L
+        legacy: VAR_CONS_COLD
+        unit: "l"
+        legacy_scale: 0.1   # sent in tens of liters
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 93
+        name: CONS_HOT_L
+        legacy: VAR_CONS_HOT
+        unit: "l"
+        legacy_scale: 0.1   # sent in tens of liters
+        period_ms: 3000
+        receivers: [RPI]
+
+  recu:   # Recuperation unit (RECU)
+    producer: RECU
+    vars:
+      - id: 128
+        name: TEMP_RECU_FC_C
+        legacy: VAR_TEMP_RECU_FC
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 129
+        name: TEMP_RECU_FH_C
+        legacy: VAR_TEMP_RECU_FH
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 130
+        name: TEMP_RECU_WH_C
+        legacy: VAR_TEMP_RECU_WH
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 131
+        name: TEMP_RECU_WC_C
+        legacy: VAR_TEMP_RECU_WC
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 132
+        name: RH_RECU_FH
+        legacy: VAR_RH_RECU_FH
+        unit: "%"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 133
+        name: RH_RECU_WH
+        legacy: VAR_RH_RECU_WH
+        unit: "Wh"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 137
+        name: CO2_RECU
+        legacy: VAR_CO2_RECU
+        unit: "ppm"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 138
+        name: DP_RECU_F
+        legacy: VAR_DP_RECU_F
+        unit: "Pa"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 139
+        name: DP_RECU_W
+        legacy: VAR_DP_RECU_W
+        unit: "W"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 140
+        name: RECU_FAN_F
+        legacy: VAR_RECU_FAN_F
+        unit: "%"
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 141
+        name: RECU_FAN_W
+        legacy: VAR_RECU_FAN_W
+        unit: "W"
+        period_ms: 3000
+        receivers: [RPI]
+
+  temperatures:   # Temperatures (TEMP module, 1-Wire)
+    producer: TECHM
+    vars:
+      - id: 100
+        name: TEMP_BOILER_C
+        legacy: VAR_TEMP_BOILER
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 101
+        name: TEMP_BOILER_IN_C
+        legacy: VAR_TEMP_BOILER_IN
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 102
+        name: TEMP_BOILER_OUT_C
+        legacy: VAR_TEMP_BOILER_OUT
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 103
+        name: TEMP_TANK_IN_H_C
+        legacy: VAR_TEMP_TANK_IN_H
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 104
+        name: TEMP_TANK_OUT_H_C
+        legacy: VAR_TEMP_TANK_OUT_H
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 105
+        name: TEMP_TANK_1_C
+        legacy: VAR_TEMP_TANK_1
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 106
+        name: TEMP_TANK_2_C
+        legacy: VAR_TEMP_TANK_2
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 107
+        name: TEMP_TANK_3_C
+        legacy: VAR_TEMP_TANK_3
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 108
+        name: TEMP_TANK_4_C
+        legacy: VAR_TEMP_TANK_4
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 109
+        name: TEMP_TANK_5_C
+        legacy: VAR_TEMP_TANK_5
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 110
+        name: TEMP_TANK_6_C
+        legacy: VAR_TEMP_TANK_6
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 111
+        name: TEMP_WALL_IN_C
+        legacy: VAR_TEMP_WALL_IN
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 112
+        name: TEMP_WALL_OUT_C
+        legacy: VAR_TEMP_WALL_OUT
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 113
+        name: TEMP_BOILER_EXHAUST_C
+        legacy: VAR_TEMP_BOILER_EXHAUST
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 114
+        name: TEMP_RAD_H_C
+        legacy: VAR_TEMP_RAD_H
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 115
+        name: TEMP_RAD_C_C
+        legacy: VAR_TEMP_RAD_C
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 116
+        name: TEMP_TANK_IN_C_C
+        legacy: VAR_TEMP_TANK_IN_C
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 117
+        name: TEMP_TANK_OUT_C_C
+        legacy: VAR_TEMP_TANK_OUT_C
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 120
+        name: TEMP_TECHM_BOARD_C
+        legacy: VAR_TEMP_TECHM_BOARD
+        unit: "°C"
+        legacy_scale: 10
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 121
+        name: TEMP_IOBOARD_D_C
+        legacy: VAR_TEMP_IOBOARD_D
+        unit: "°C"
+        legacy_scale: 10
+        producer: IOBOARD_D
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 122
+        name: TEMP_IOBOARD_U_C
+        legacy: VAR_TEMP_IOBOARD_U
+        unit: "°C"
+        legacy_scale: 10
+        producer: IOBOARD_U
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 123
+        name: TEMP_ELECON_BOARD_C
+        legacy: VAR_TEMP_ELECON_BOARD
+        unit: "°C"
+        legacy_scale: 10
+        producer: ELECON
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 124
+        name: TEMP_DOWNSTAIRS_C
+        legacy: VAR_TEMP_DOWNSTAIRS
+        unit: "°C"
+        legacy_scale: 10
+        producer: IOBOARD_D
+        period_ms: 3000
+        receivers: [RECU, TECHM, RPI]
+      - id: 125
+        name: TEMP_OFFICE_C
+        legacy: VAR_TEMP_OFFICE
+        unit: "°C"
+        legacy_scale: 10
+        producer: ELECON
+        period_ms: 3000
+        receivers: [RPI]
+      - id: 126
+        name: TEMP_KIDROOM_C
+        legacy: VAR_TEMP_KIDROOM
+        unit: "°C"
+        legacy_scale: 10
+        producer: ELECON
+        period_ms: 3000
+        receivers: [RECU, TECHM, RPI]
+      - id: 127
+        name: TEMP_OUTSIDE_C
+        legacy: VAR_TEMP_OUTSIDE
+        unit: "°C"
+        legacy_scale: 10
+        producer: ELECON
+        period_ms: 3000
+        receivers: [RECU, TECHM, RPI]
+      - id: 144
+        name: TEMP_DILNA_C
+        legacy: VAR_TEMP_DILNA
+        unit: "°C"
+        legacy_scale: 10
+        producer: ELECON_D
+        period_ms: 5000
+        receivers: [RPI]
+      - id: 145
+        name: TEMP_AKUPACK1_C
+        legacy: VAR_TEMP_AKUPACK1
+        unit: "°C"
+        legacy_scale: 10
+        producer: ELECON_D
+        period_ms: 5000
+        receivers: [RPI]
+      - id: 146
+        name: TEMP_BOARD_ELECON_D_C
+        legacy: VAR_TEMP_BOARD_ELECON_D
+        unit: "°C"
+        legacy_scale: 10
+        producer: ELECON_D
+        period_ms: 5000
+        receivers: [RPI]
+      - id: 147
+        name: TEMP_KOLARNA_C
+        legacy: VAR_TEMP_KOLARNA
+        unit: "°C"
+        legacy_scale: 10
+        producer: ELECON_D
+        period_ms: 5000
+
+  meteo:   # Meteo (IOBOARD_U)
+    producer: IOBOARD_U
+    vars:
+      - id: 161
+        name: METEO_WIND_BURST
+        legacy: VAR_METEO_WIND_BURST
+        unit: "m/s"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 162
+        name: METEO_WIND_AVG
+        legacy: VAR_METEO_WIND_AVG
+        unit: "m/s"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 163
+        name: METEO_WIND_POW
+        legacy: VAR_METEO_WIND_POW
+        unit: "W"
+        period_ms: 1000
+        receivers: [RPI]
+      - id: 164
+        name: METEO_WIND_ENERGY
+        legacy: VAR_METEO_WIND_ENERGY
+        unit: "Wh"
+        period_ms: 5000
+        receivers: [RPI]
