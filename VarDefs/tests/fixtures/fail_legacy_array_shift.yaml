@@ -1,0 +1,9 @@
+# expect: legacy VAR_CELL1_MV is 20 in VARS.h but id is 21
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  g:
+    producer: N1
+    vars:
+      - {id: 21, name: G_CELL_V, count: 2, unit: "V", legacy: "VAR_CELL{1..2}_MV", period_ms: 1000}

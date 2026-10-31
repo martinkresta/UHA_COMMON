@@ -1,0 +1,11 @@
+# expect: type enum requires 'enum
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+enums:
+  Mode: {0: Idle, 1: Run}
+groups:
+  g:
+    producer: N1
+    vars:
+      - {id: 1, name: G_MODE, type: enum, period_ms: 1000}

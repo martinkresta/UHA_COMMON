@@ -1,0 +1,10 @@
+# expect: is not a valid C identifier
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  g:
+    producer: N1
+    vars:
+      - {id: 1, name: BMS_1_SOC, period_ms: 1000}
+      - {id: 2, name: BMS_1_V, unit: "V", period_ms: 1000}

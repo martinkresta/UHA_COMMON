@@ -1,0 +1,10 @@
+# expect: duplicate id 12..13 (2 ids)
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  g:
+    producer: N1
+    vars:
+      - {id: 10, name: G_ARR, count: 4, period_ms: 1000}
+      - {id: 12, name: G_B, count: 2, period_ms: 1000}

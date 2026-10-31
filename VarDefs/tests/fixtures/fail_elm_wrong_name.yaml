@@ -1,0 +1,10 @@
+# expect: ELM rule: id 70 (= id + 10) is FOO_POWER_W, expected POW_*_W
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  el_meters:
+    producer: N1
+    vars:
+      - {id: 60, name: CONS_FOO_WH, unit: "Wh", period_ms: 1000}
+      - {id: 70, name: FOO_POWER_W, unit: "W", period_ms: 1000}

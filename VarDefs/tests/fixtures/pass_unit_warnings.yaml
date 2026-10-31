@@ -1,0 +1,13 @@
+# expect-warning: name ends with unit token _W but unit is None
+# expect-warning: name ends with unit token _C but unit is 'V'
+# expect-warning: non-integer legacy_scale 0.1 on int32
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  g:
+    producer: N1
+    vars:
+      - {id: 1, name: G_A_W, period_ms: 1000}
+      - {id: 2, name: G_T_C, unit: "V", period_ms: 1000}
+      - {id: 3, name: G_CNT, type: int32, legacy_scale: 0.1, period_ms: 1000}

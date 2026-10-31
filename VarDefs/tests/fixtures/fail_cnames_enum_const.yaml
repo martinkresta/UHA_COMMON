@@ -1,0 +1,12 @@
+# expect: generated enum constant A_B_C also produced by enum
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+enums:
+  A_B: {0: C}
+  A: {0: B_C}
+groups:
+  g:
+    producer: N1
+    vars:
+      - {id: 1, name: G_A_W, unit: "W", period_ms: 1000}

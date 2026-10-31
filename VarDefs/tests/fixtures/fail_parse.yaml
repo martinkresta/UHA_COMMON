@@ -1,0 +1,6 @@
+# expect-exit: 2
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  g: [unclosed

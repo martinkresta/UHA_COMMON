@@ -1,0 +1,11 @@
+# expect: group has no 'vars' list
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  g:
+    producer: N1
+    vars:
+      - {id: 1, name: G_A_W, unit: "W", period_ms: 1000}
+  empty:
+    producer: N1

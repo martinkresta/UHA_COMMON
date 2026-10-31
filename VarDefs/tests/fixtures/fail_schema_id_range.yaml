@@ -1,0 +1,9 @@
+# expect: out of range 0..65534
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  g:
+    producer: N1
+    vars:
+      - {id: 65530, name: G_A, count: 6, period_ms: 1000}

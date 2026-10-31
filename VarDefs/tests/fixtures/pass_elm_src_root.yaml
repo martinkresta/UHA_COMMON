@@ -1,0 +1,17 @@
+# expect-warning: ELM_AddMeter(..., VAR_BAT_SOC) but BAT_SOC is not a CONS_*_WH
+# expect-warning: VAR_UNKNOWN_WH is not a legacy of any YAML variable
+# expect-absent: COMMENT
+# args: --vars-h VARS_test.h --src-root src
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  energy:
+    producer: N1
+    vars:
+      - {id: 10, name: BAT_SOC, legacy: VAR_BAT_SOC, unit: "%", period_ms: 1000}
+  el_meters:
+    producer: N2
+    vars:
+      - {id: 60, name: CONS_FOO_WH, legacy: VAR_CONS_FOO_WH, unit: "Wh", period_ms: 3000}
+      - {id: 70, name: POW_FOO_W, legacy: VAR_POW_FOO_W, unit: "W", period_ms: 3000}

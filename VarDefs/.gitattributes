@@ -1,0 +1,4 @@
+generated/* text eol=lf
+*.py text eol=lf
+*.yaml text eol=lf
+tests/** text eol=lf
