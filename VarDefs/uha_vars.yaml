@@ -970,7 +970,7 @@ groups:
       - id: 133
         name: RH_RECU_WH
         legacy: VAR_RH_RECU_WH
-        unit: "Wh"
+        unit: "%"
         period_ms: 3000
         receivers: [RPI]
       - id: 137
@@ -988,7 +988,7 @@ groups:
       - id: 139
         name: DP_RECU_W
         legacy: VAR_DP_RECU_W
-        unit: "W"
+        unit: "Pa"
         period_ms: 3000
         receivers: [RPI]
       - id: 140
@@ -1000,7 +1000,7 @@ groups:
       - id: 141
         name: RECU_FAN_W
         legacy: VAR_RECU_FAN_W
-        unit: "W"
+        unit: "%"
         period_ms: 3000
         receivers: [RPI]
 

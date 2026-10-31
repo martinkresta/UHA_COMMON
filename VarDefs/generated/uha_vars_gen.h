@@ -117,12 +117,12 @@ typedef enum
   VID_TEMP_RECU_WH_C           = 130,  /* recu, degC */
   VID_TEMP_RECU_WC_C           = 131,  /* recu, degC */
   VID_RH_RECU_FH               = 132,  /* recu, % */
-  VID_RH_RECU_WH               = 133,  /* recu, Wh */
+  VID_RH_RECU_WH               = 133,  /* recu, % */
   VID_CO2_RECU                 = 137,  /* recu, ppm */
   VID_DP_RECU_F                = 138,  /* recu, Pa */
-  VID_DP_RECU_W                = 139,  /* recu, W */
+  VID_DP_RECU_W                = 139,  /* recu, Pa */
   VID_RECU_FAN_F               = 140,  /* recu, % */
-  VID_RECU_FAN_W               = 141,  /* recu, W */
+  VID_RECU_FAN_W               = 141,  /* recu, % */
   VID_TEMP_DILNA_C             = 144,  /* temperatures, degC */
   VID_TEMP_AKUPACK1_C          = 145,  /* temperatures, degC */
   VID_TEMP_BOARD_ELECON_D_C    = 146,  /* temperatures, degC */
@@ -474,12 +474,12 @@ typedef struct
   float TempRecuWh_C; /* id 130, degC */
   float TempRecuWc_C; /* id 131, degC */
   float RhRecuFh;     /* id 132, % */
-  float RhRecu_Wh;    /* id 133, Wh */
+  float RhRecuWh;     /* id 133, % */
   float Co2Recu;      /* id 137, ppm */
   float DpRecuF;      /* id 138, Pa */
-  float DpRecu_W;     /* id 139, W */
+  float DpRecuW;      /* id 139, Pa */
   float RecuFanF;     /* id 140, % */
-  float RecuFan_W;    /* id 141, W */
+  float RecuFanW;     /* id 141, % */
 } sVarsRecu;
 
 typedef struct
