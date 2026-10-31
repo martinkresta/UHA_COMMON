@@ -7,7 +7,8 @@ Fixture header comments (leading '#' lines):
     # expect-absent: <substr>     no output line may contain <substr>
     # expect-exit: <n>            expected exit code (default: pass_* -> 0, fail_* -> 1)
     # args: <cli args>            extra CLI args, paths relative to tests/fixtures
-                                  (default: --vars-h VARS_test.h)
+                                  (default: --vars-h VARS_test.h; --mcan-h MCAN_test.h always
+                                  added unless given)
 pass_* must give 0 errors, fail_* >= 1 error. base_*.yaml are baseline inputs, not tests.
 
 Usage:  python tests/run_validator_tests.py [-v]
@@ -48,6 +49,8 @@ def run_one(path: Path, verbose: bool) -> bool:
     is_pass = path.name.startswith("pass_")
     exp_exit = h["expect-exit"] if h["expect-exit"] is not None else (0 if is_pass else 1)
     args = h["args"] if h["args"] is not None else ["--vars-h", "VARS_test.h"]
+    if "--mcan-h" not in args:
+        args = args + ["--mcan-h", "MCAN_test.h"]
     p = subprocess.run([sys.executable, str(VALIDATOR), path.name] + args, cwd=FIX,
                        capture_output=True, text=True, encoding="utf-8", errors="replace")
     out = (p.stdout + p.stderr).splitlines()

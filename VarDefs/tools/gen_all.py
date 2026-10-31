@@ -19,7 +19,7 @@ sys.path.insert(0, TOOLS_DIR)
 
 from vars_model import load_model, VarsYamlError  # noqa: E402
 from vars_validate import validate  # noqa: E402
-from vars_gen_fw import generate  # noqa: E402
+from vars_gen_fw import generate, GenError  # noqa: E402
 
 
 def main() -> int:
@@ -31,6 +31,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Validate uha_vars.yaml and generate FW code")
     ap.add_argument("yaml", nargs="?", default=os.path.join(VARDEFS_DIR, "uha_vars.yaml"))
     ap.add_argument("--vars-h", default=os.path.join(VARDEFS_DIR, "..", "Inc", "VARS.h"))
+    ap.add_argument("--mcan-h", default=os.path.join(VARDEFS_DIR, "..", "Inc", "MCAN.h"))
     ap.add_argument("--baseline", help="previous released YAML for the compatibility check")
     ap.add_argument("--src-root", help="workspace root to cross-check ELM_AddMeter() calls")
     ap.add_argument("-o", "--outdir", default=os.path.join(VARDEFS_DIR, "generated"))
@@ -43,7 +44,8 @@ def main() -> int:
         print(f"ERROR   {e}")
         return 2
 
-    issues = validate(model, vars_h=args.vars_h, baseline=baseline, src_root=args.src_root)
+    issues = validate(model, vars_h=args.vars_h, baseline=baseline, src_root=args.src_root,
+                      mcan_h=args.mcan_h)
     for i in issues:
         print(i.format(args.yaml))
     nerr = sum(1 for i in issues if i.severity == "E")
@@ -54,7 +56,11 @@ def main() -> int:
         print("generation skipped (fix the errors first)")
         return 1
 
-    generate(model, args.outdir)
+    try:
+        generate(model, args.outdir)
+    except GenError as e:
+        print(f"ERROR   {e}")
+        return 1
     print("done")
     return 0
 

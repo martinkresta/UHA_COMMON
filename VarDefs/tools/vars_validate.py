@@ -13,8 +13,9 @@ Import:
     issues = validate(model, vars_h=None, baseline=None, src_root=None)
     for i in issues: print(i.format(model.path))
 
-    vars_h   None -> default <VarDefs>/../Inc/VARS.h (warning if missing),
+    vars_h   None -> default <VarDefs>/../Inc/VARS.h (error if unreadable),
              False -> legacy-vs-VARS.h check skipped, str -> that file
+    mcan_h   same for MCAN.h (node ids vs NODEID_*)
     baseline None, a path, or an already loaded Model
     src_root None or a directory scanned for ELM_AddMeter() calls (**/Core/Src/*.c)
 """
@@ -35,6 +36,8 @@ from vars_model import (TYPES, UNIT_SUFFIX, UNIT_TOKENS, Model, VarDef, VarsYaml
 
 VARDEFS_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_VARS_H = VARDEFS_DIR.parent / "Inc" / "VARS.h"
+DEFAULT_MCAN_H = VARDEFS_DIR.parent / "Inc" / "MCAN.h"
+RE_NODEID = re.compile(r"#define\s+NODEID_(\w+)\s+(\d+)")
 
 KNOWN_TOP_KEYS = {"version", "nodes", "defaults", "enums", "groups"}
 KNOWN_GROUP_KEYS = {"producer", "vars"}
@@ -431,7 +434,7 @@ def _rule_legacy_vars_h(c: _Ctx, vars_h):
     try:
         defs = parse_vars_h(path)
     except OSError:
-        c.add("W", 0, "VARS.h", f"cannot read {path}; legacy check skipped")
+        c.add("E", 0, "VARS.h", f"cannot read {path}; legacy ids cannot be checked")
         return
     for d in _all_defs(c.m):
         if "legacy" not in d.raw and "legacy" not in c.m.defaults:
@@ -445,6 +448,29 @@ def _rule_legacy_vars_h(c: _Ctx, vars_h):
         elif defs[lg] != v.id:
             c.ve(v.base, "legacy", f"legacy {lg} is {defs[lg]} in VARS.h but id is {v.id}"
                  + (f" ({v.name})" if v.index is not None else ""))
+
+
+# Rule 6b: node ids match NODEID_* in MCAN.h (generated code uses NODEID_<NODE>)
+# ---------------------------------------------------------------------------
+def _rule_mcan_nodes(c: _Ctx, mcan_h):
+    if mcan_h is False:
+        return
+    path = Path(mcan_h) if mcan_h else DEFAULT_MCAN_H
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            defs = {m.group(1): int(m.group(2))
+                    for m in (RE_NODEID.search(line.split("//")[0]) for line in f) if m}
+    except OSError:
+        c.add("E", 0, "MCAN.h", f"cannot read {path}; node ids cannot be checked")
+        return
+    producers = {v.producer for v in c.m.values}
+    for name, nid in c.m.nodes.items():
+        ln = c.m.node_lines.get(name) or 0
+        if name not in defs:
+            if name in producers:
+                c.add("E", ln, f"nodes/{name}", f"producer node has no NODEID_{name} in MCAN.h")
+        elif defs[name] != nid:
+            c.add("E", ln, f"nodes/{name}", f"node id {nid} but NODEID_{name} is {defs[name]} in MCAN.h")
 
 
 # ---------------------------------------------------------------------------
@@ -471,6 +497,8 @@ def _rule_timing(c: _Ctx):
         elif _is_int(d.timeout_ms) and d.timeout_ms > U16_MAX:
             c.ve(d, "timeout_ms", f"timeout_ms {d.timeout_ms}{' (auto = 3 x period)' if t == 'auto' else ''} "
                                   f"does not fit uint16")
+        elif _is_int(d.timeout_ms) and _is_int(p) and d.timeout_ms < p:
+            c.ve(d, "timeout_ms", f"timeout_ms {d.timeout_ms} is shorter than period_ms {p}")
 
 
 # ---------------------------------------------------------------------------
@@ -534,6 +562,9 @@ def _rule_elm(c: _Ctx, src_root):
             c.ve(v.base, "id", f"ELM rule: id {p.id} (= id + {ELM_OFFSET}) is {p.name}, expected POW_*_W")
         elif mp.group(1) != mc.group(1):
             c.vw(v.base, "id", f"ELM rule: id {p.id} is {p.name}, expected POW_{mc.group(1)}_W")
+        if mp and p.producer != v.producer:   # ELM on the energy producer writes the power too
+            c.ve(p.base, "producer", f"ELM rule: {p.name} producer {p.producer} differs from "
+                                     f"{v.name} producer {v.producer}")
 
     if not src_root:
         return
@@ -603,7 +634,7 @@ def _rule_units(c: _Ctx):
 
 
 # ---------------------------------------------------------------------------
-def validate(model: Model, vars_h=None, baseline=None, src_root=None) -> List[Issue]:
+def validate(model: Model, vars_h=None, baseline=None, src_root=None, mcan_h=None) -> List[Issue]:
     c = _Ctx(model)
     _rule_schema(c)
     _rule_unique(c)
@@ -611,6 +642,7 @@ def validate(model: Model, vars_h=None, baseline=None, src_root=None) -> List[Is
     _rule_enums(c)
     _rule_legacy_range(c)
     _rule_legacy_vars_h(c, vars_h)
+    _rule_mcan_nodes(c, mcan_h)
     _rule_timing(c)
     _rule_c_names(c)
     _rule_elm(c, src_root)
@@ -631,12 +663,14 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Validate uha_vars.yaml (VARS2)")
     ap.add_argument("yaml")
     ap.add_argument("--vars-h", help=f"legacy VARS.h (default {DEFAULT_VARS_H})")
+    ap.add_argument("--mcan-h", help=f"MCAN.h with NODEID_* (default {DEFAULT_MCAN_H})")
     ap.add_argument("--baseline", help="previous released YAML for the compatibility check")
     ap.add_argument("--src-root", help="scan <dir>/**/Core/Src/*.c for ELM_AddMeter() calls")
     ap.add_argument("-q", "--quiet", action="store_true", help="do not print warnings")
     a = ap.parse_args(argv)
 
-    for p, what in ((a.yaml, "file"), (a.vars_h, "file"), (a.baseline, "file"), (a.src_root, "dir")):
+    for p, what in ((a.yaml, "file"), (a.vars_h, "file"), (a.mcan_h, "file"), (a.baseline, "file"),
+                    (a.src_root, "dir")):
         if p and not (os.path.isdir(p) if what == "dir" else os.path.isfile(p)):
             print(f"FATAL   {p}: {what} not found", file=sys.stderr)
             return 2
@@ -647,7 +681,7 @@ def main(argv=None) -> int:
         print(f"FATAL   {e}", file=sys.stderr)
         return 2
 
-    issues = validate(model, vars_h=a.vars_h, baseline=baseline, src_root=a.src_root)
+    issues = validate(model, vars_h=a.vars_h, baseline=baseline, src_root=a.src_root, mcan_h=a.mcan_h)
     ne = sum(1 for i in issues if i.severity == "E")
     nw = len(issues) - ne
     for i in issues:

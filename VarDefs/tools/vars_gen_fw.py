@@ -264,6 +264,14 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     try:
         model = load_model(a.yaml)
+        from vars_validate import validate   # never write from an invalid YAML
+        errs = [i for i in validate(model) if i.severity == "E"]
+        if errs:
+            for i in errs:
+                print(i.format(a.yaml), file=sys.stderr)
+            print(f"ERROR: {len(errs)} validation errors, nothing generated (run tools/gen_all.py)",
+                  file=sys.stderr)
+            return 1
         written = generate(model, a.outdir)
     except (VarsYamlError, GenError) as e:
         print(f"ERROR: {e}", file=sys.stderr)

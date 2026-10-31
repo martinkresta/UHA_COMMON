@@ -1,0 +1,9 @@
+# expect: timeout_ms 100 is shorter than period_ms 1000
+version: 1
+nodes: {N1: 1, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  g:
+    producer: N1
+    vars:
+      - {id: 10, name: BAT_SOC, legacy: VAR_BAT_SOC, unit: "%", period_ms: 1000, timeout_ms: 100}

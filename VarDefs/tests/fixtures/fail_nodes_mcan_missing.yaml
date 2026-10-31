@@ -1,0 +1,9 @@
+# expect: producer node has no NODEID_N3 in MCAN.h
+version: 1
+nodes: {N1: 1, N3: 3, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  g:
+    producer: N3
+    vars:
+      - {id: 10, name: BAT_SOC, legacy: VAR_BAT_SOC, unit: "%", period_ms: 1000}

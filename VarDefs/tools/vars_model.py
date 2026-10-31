@@ -316,7 +316,9 @@ def load_model(path: str) -> Model:
                 id=merged.get("id"), name=merged.get("name"), legacy=merged.get("legacy"),
                 type=merged.get("type", "float"), enum=merged.get("enum"), unit=merged.get("unit"),
                 legacy_scale=merged.get("legacy_scale", 1),
-                producer=merged.get("producer", grp.producer),
+                # var -> group -> defaults (a default must not override the group producer)
+                producer=r.get("producer", grp.producer if grp.producer is not None
+                               else defaults.get("producer")),
                 period_ms=period, timeout_ms=tout, timeout_raw=tout_raw,
                 on_can=merged.get("on_can", True), count=merged.get("count"),
                 receivers=list(recv) if isinstance(recv, list) else ([] if recv is None else [recv]),
