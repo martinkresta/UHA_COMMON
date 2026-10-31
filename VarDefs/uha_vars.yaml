@@ -968,7 +968,7 @@ groups:
         period_ms: 3000
         receivers: [RPI]
       - id: 133
-        name: RH_RECU_WH
+        name: RH_RECU_WASTE
         legacy: VAR_RH_RECU_WH
         unit: "%"
         period_ms: 3000
@@ -986,7 +986,7 @@ groups:
         period_ms: 3000
         receivers: [RPI]
       - id: 139
-        name: DP_RECU_W
+        name: DP_RECU_WASTE
         legacy: VAR_DP_RECU_W
         unit: "Pa"
         period_ms: 3000
@@ -998,7 +998,7 @@ groups:
         period_ms: 3000
         receivers: [RPI]
       - id: 141
-        name: RECU_FAN_W
+        name: RECU_FAN_WASTE
         legacy: VAR_RECU_FAN_W
         unit: "%"
         period_ms: 3000
