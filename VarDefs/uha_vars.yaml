@@ -723,11 +723,13 @@ groups:
         name: CONS_KITCHEN_A_WH
         legacy: VAR_CONS_KITCHEN_A_WH
         unit: "Wh"
+        period_ms: 5000
         on_can: false
       - id: 69
         name: CONS_KITCHEN_B_WH
         legacy: VAR_CONS_KITCHEN_B_WH
         unit: "Wh"
+        period_ms: 5000
         on_can: false
       - id: 70
         name: POW_AC300_W
@@ -787,11 +789,13 @@ groups:
         name: POW_KITCHEN_A_W
         legacy: VAR_POW_KITCHEN_A_W
         unit: "W"
+        period_ms: 5000
         on_can: false
       - id: 79
         name: POW_KITCHEN_B_W
         legacy: VAR_POW_KITCHEN_B_W
         unit: "W"
+        period_ms: 5000
         on_can: false
       - id: 260
         name: CONS_AXPERT_WH
