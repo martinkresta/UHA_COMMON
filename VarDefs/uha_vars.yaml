@@ -919,14 +919,14 @@ groups:
         name: CONS_COLD_L
         legacy: VAR_CONS_COLD
         unit: "l"
-        legacy_scale: 0.1   # sent in tens of liters
+        legacy_scale: 10   # sent in tenths of a liter
         period_ms: 3000
         receivers: [RPI]
       - id: 93
         name: CONS_HOT_L
         legacy: VAR_CONS_HOT
         unit: "l"
-        legacy_scale: 0.1   # sent in tens of liters
+        legacy_scale: 10   # sent in tenths of a liter
         period_ms: 3000
         receivers: [RPI]
 
@@ -1235,12 +1235,14 @@ groups:
         name: METEO_WIND_BURST
         legacy: VAR_METEO_WIND_BURST
         unit: "m/s"
+        legacy_scale: 10   # sent in tenths of m/s
         period_ms: 1000
         receivers: [RPI]
       - id: 162
         name: METEO_WIND_AVG
         legacy: VAR_METEO_WIND_AVG
         unit: "m/s"
+        legacy_scale: 10   # sent in tenths of m/s
         period_ms: 1000
         receivers: [RPI]
       - id: 163
