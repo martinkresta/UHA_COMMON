@@ -160,19 +160,23 @@ instead of overwriting the released one.
 | IOBOARD_U | v001.01 | 45268 B | 43200 B | ~6376 / ~3085 B |
 | RECU_NUCLEO | v001.01 | 62584 B | 9944 B | ~6600 / ~3085 B |
 
-\* TECHM's source/build was fully verified (0 errors/warnings, VARS2 files
-compiled) in the first build round, *before* the version bump — flash/RAM
-above are from that build. The second round (after the version bump, to
-produce a `Deployment/v001.03/` artifact like the other five) failed for an
-unrelated toolchain reason: STM32CubeIDE's headless build tries to pop a
-GUI confirmation dialog (`MCULoggerPlugin.openConfirmDialog`, "Workbench has
-not been created yet") that apparently was never dismissed once for TECHM
-in this workspace — the other five must have gone through this before
-(ELECON_D certainly has, per earlier memory of a v1.15 build). **Needs
-Martin:** either do one normal build of TECHM from the IDE GUI once (that
-dismisses the dialog for good), or point to the workspace preference that
-suppresses it; I did not guess at editing Eclipse's workspace metadata
-blind. No source change is needed for TECHM — this is pure tooling.
+\* TECHM's headless build initially crashed on a one-time GUI
+toolchain-confirm dialog (`MCULoggerPlugin.openConfirmDialog`, "Workbench
+has not been created yet") that had never been dismissed for this project
+in the workspace. **Resolved 2026-11-01**: Martin built TECHM once from the
+IDE himself, producing `Deployment/v001.03/` (flash 58504 B / RAM 11120 B —
+exactly matching the pre-dialog-fix measurement, confirming no regression).
+No source change was needed; pure one-time tooling hiccup.
+
+**ASW_ELECON_TEST (desk-test board, same HW as ELECON/ELECON_D, not on the
+real bus)** was not in the brief's "build all six" list but is the board
+used for the step 6 desk test — also needed the VARS2 wiring check: it
+links `Common/Inc`/`Src` as whole folders (like ELECON/TECHM/IOBOARD_D/U),
+so no `.project` edit was needed, same as those. Branched `vars2-step1`
+(from `master`), bumped `ASW_VERSION`. Built by Martin in the IDE (twice,
+105 then 106 — both identical code, just the version he ended up on):
+`Deployment/v001.06/`, flash (text+data) 82228 B, RAM (data+bss) 26432 B,
+`VARS2.o`/`uha_vars_gen.o` confirmed compiled. Ready for the desk test.
 
 Flash delta is ~5.7-6.6 KB, RAM delta ~3.0-3.1 KB on every node — the
 generated `VarMeta`/`VarIdToIndex` tables (flash, 5140+764 B) plus
@@ -196,8 +200,8 @@ including the smallest (STM32L431RC, 256 KB/64 KB).
 ## Open points for Martin
 
 - ASW_RECU_NUCLEO drift — resolved, synced (decided 2026-11-01, see above).
-- TECHM headless build dialog (see "Build results" above) — needs a one-time
-  IDE build or a workspace-preference pointer; not a VARS2 issue.
+- TECHM headless build dialog — resolved (Martin built once in the IDE).
 - Desk test (step 6, physical ELECON_TEST board on the desk CAN bus) needs
   Martin's hands-on execution — not something drivable from here.
+  ASW_ELECON_TEST is built and ready (`Deployment/v001.06`).
 - Live-node flash order recommendation: see final chat report.
