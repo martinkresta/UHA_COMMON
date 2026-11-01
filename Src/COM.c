@@ -11,6 +11,7 @@
 #include "main.h"
 #include "COM.h"
 #include "VARS.h"
+#include "VARS2.h"
 #include "MCAN.h"
 #include "string.h"
 
@@ -36,6 +37,7 @@ static void SendVariable(uint16_t id);
 void COM_Init(uint8_t nodeId)
 {
 	mNodeId = nodeId;
+	VARS2_Init(nodeId);
 }
 
 
@@ -71,10 +73,21 @@ int16_t COM_GetNetworkStatus(void)
 	return ns;
 }
 
-// just wrapper to MCAN
+// wrapper to MCAN; VARS2 frames (0x180+node) are consumed here and never
+// returned to the application - keep fetching until a non-VARS2 frame or
+// an empty buffer is found
 uint8_t COM_GetRxMessage( s_CanRxMsg* msg)
 {
-	return MCAN_GetRxMessage(msg);
+	while (1 == MCAN_GetRxMessage(msg))
+	{
+		if ((msg->header.StdId & 0x7F0) == 0x180)
+		{
+			VARS2_ProcessFrame(msg->data);
+			continue;
+		}
+		return 1;
+	}
+	return 0;
 }
 
 void COM_Update_10ms(void)
@@ -253,6 +266,7 @@ static void SendVariable(uint16_t id)
 	data[6] = 0;
 	data[7] = 0;
 	MCAN_SendFrame(CMD_VAR_VALUE + mNodeId, data, 8);
+	VARS2_SendLegacy(id);
 }
 
 
