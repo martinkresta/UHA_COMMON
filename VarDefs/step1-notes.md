@@ -1,5 +1,26 @@
 # VARS2 step 1 — working notes
 
+## Branches
+
+The brief assumed only `UHA_COMMON` would need a `vars2-step1` branch ("same
+branch name in any other repo you have to touch (should be none)"), but the
+build-config work touches six more repos (each ASW project is its own git
+repo). Created `vars2-step1` in all of them, from their current branch:
+
+| Repo | Branched from | Pre-existing local state carried onto the branch (not ours, don't touch) |
+|---|---|---|
+| `UHA_COMMON` | `vars2-step0` | clean |
+| `ASW_ELECON` | `dev_asw` | uncommitted: `Core/Src/LEMON.c`, `Deployment/v001.10/*` |
+| `ASW_ELECON_D` | `main` | clean (`lemon-soc-from-bms` was already merged into `main` at `fe12b82`, matches `origin/main` — no merge needed, confirmed before branching) |
+| `ASW_TECHM` | `dev_asw` | clean |
+| `ASW_IOBOARD_D` | `dev_asw` | uncommitted: `.cproject`, `.settings/stm32cubeide.project.prefs`, `Core/Src/main.c`, added `Deployment/v001.00/*` |
+| `ASW_IOBOARD_U` | `dev_asw` | untracked `CLAUDE.md` only |
+| `ASW_RECU_NUCLEO` | `dev_asw` | untracked `CLAUDE.md` only |
+
+The pre-existing uncommitted/untracked files above are Martin's own
+in-progress work, unrelated to VARS2 — left alone, not staged/committed by
+this task (commits here only `git add` the specific files VARS2 touches).
+
 ## Study findings
 
 - `COM.c` / `COM.h` match the brief exactly: `SendVariable(id)` (static, called
@@ -37,20 +58,21 @@ all — the CDT indexer/build only compiles files physically present in the
 project tree.
 
 **ASW_RECU_NUCLEO does not use linked resources.** Its `.project` has zero
-`<link>` entries; it carries a physical, already-drifted **copy** of the
-UHA_COMMON sources under `ASW_RECU_NUCLEO/UhaCommon/Src`+`Inc` (e.g. its
-`COM.c`/`COM.h`/`MCAN.c`/`MCAN.h` are dated Feb 2026, its `VARS.c`/`VARS.h`
-Sep 2025 — not the current `UHA_COMMON` files, byte-for-byte different).
-Editing `UHA_COMMON/Src/COM.c` has **no effect** on this node unless its local
-copy is updated too. This needs a decision from Martin (flagged, not
-resolved here): either (a) also hand-patch
-`ASW_RECU_NUCLEO/UhaCommon/{Src,Inc}` with the same COM.c hook + new VARS2
-files, knowing it is otherwise out of sync with UHA_COMMON already, or
-(b) convert it to real linked resources first (separate task, out of scope
-for step 1 per the brief's "no change outside COM.c / new files... ask
-Martin"). Proceeding with (a) — minimal, mirrors the hook into the local
-copy — unless told otherwise, and reporting the pre-existing drift as a
-separate open point.
+`<link>` entries; it carries a physical **copy** of the UHA_COMMON sources
+under `ASW_RECU_NUCLEO/UhaCommon/Src`+`Inc` (a git subtree, squashed in a long
+time ago, never updated since). Of its ~17 files, 5 had drifted from the
+current `UHA_COMMON`: `COM.c`, `COM.h`, `MCAN.c`, `MCAN.h`, `VARS.h` (missing
+`VAR_*` ids added since, e.g. BMS3/STRG2/LVDC) — the rest (ADC, BMS, ELM,
+GEST, LOG, METEO, OW, PID, RTC, SENSIRION, TEMP, UHAMON, UI, circbuf,
+watchdog) are byte-identical already.
+
+**Martin's decision (asked 2026-11-01): sync now.** Replace those 5 files in
+`ASW_RECU_NUCLEO/UhaCommon/{Inc,Src}` with the current `UHA_COMMON` versions,
+then add `uha_vars_gen.h/.c`, `VARS2_types.h`, `VARS2.h/.c` there too (own
+copies, generated from the same `uha_vars.yaml`) and apply the same `COM.c`
+hook. `ASW_RECU_NUCLEO` is its own git repo (branch `vars2-step1`, from
+`dev_asw`) — commit the sync and the VARS2 addition there as separate small
+commits, same as in `UHA_COMMON`.
 
 `ASW_EVSE` and `ASW_ELECON_TEST` are out of the "build all six nodes" list
 (EVSE is not on the bus; ELECON_TEST is the desk-test board, built from the
