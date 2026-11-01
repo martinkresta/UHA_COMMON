@@ -142,9 +142,62 @@ Housekeeping noted by the reviewer, not touched (out of scope / not ours):
 modification and `vars2-step2-brief.md` is untracked there already —
 pre-existing, left alone.
 
+## Build results (headless, `C:\Martin\CUBEIDE\UHA_workspace`)
+
+All six: 0 build errors, `uha_vars_gen.o`/`VARS2.o` confirmed compiled, 0 new
+compiler warnings (every warning present is pre-existing, in files VARS2
+doesn't touch: OW.c, MCAN.c, TEMP.c, METEO.c, PID.c etc.). Per Martin's
+request (2026-11-01), `ASW_VERSION` was bumped by 1 in every project first
+so the verification build lands in a new `Deployment/vXXX.YY/` folder
+instead of overwriting the released one.
+
+| Node | Version | Flash (text+data) | RAM (data+bss) | VARS2-added (flash/RAM) |
+|---|---|---|---|---|
+| ELECON | v001.11 | 90488 B | 26104 B | ~6600 / ~3085 B |
+| ELECON_D | v001.16 | 106692 B | 23496 B | ~6600 / ~3085 B |
+| TECHM | v001.03* | 58504 B | 11120 B | ~6600 / ~3085 B |
+| IOBOARD_D | v001.01 | 60800 B | 43032 B | ~6600 / ~3085 B |
+| IOBOARD_U | v001.01 | 45268 B | 43200 B | ~6376 / ~3085 B |
+| RECU_NUCLEO | v001.01 | 62584 B | 9944 B | ~6600 / ~3085 B |
+
+\* TECHM's source/build was fully verified (0 errors/warnings, VARS2 files
+compiled) in the first build round, *before* the version bump — flash/RAM
+above are from that build. The second round (after the version bump, to
+produce a `Deployment/v001.03/` artifact like the other five) failed for an
+unrelated toolchain reason: STM32CubeIDE's headless build tries to pop a
+GUI confirmation dialog (`MCULoggerPlugin.openConfirmDialog`, "Workbench has
+not been created yet") that apparently was never dismissed once for TECHM
+in this workspace — the other five must have gone through this before
+(ELECON_D certainly has, per earlier memory of a v1.15 build). **Needs
+Martin:** either do one normal build of TECHM from the IDE GUI once (that
+dismisses the dialog for good), or point to the workspace preference that
+suppresses it; I did not guess at editing Eclipse's workspace metadata
+blind. No source change is needed for TECHM — this is pure tooling.
+
+Flash delta is ~5.7-6.6 KB, RAM delta ~3.0-3.1 KB on every node — the
+generated `VarMeta`/`VarIdToIndex` tables (flash, 5140+764 B) plus
+`Vars2`/VARS2's `mState` (RAM, 1028+2056 B), matching the PC-side
+`compile_check.py` numbers. Negligible against every target's flash/RAM,
+including the smallest (STM32L431RC, 256 KB/64 KB).
+
+**Deployment/ safety, two incidents, both resolved:**
+- Round 1 (before the version bump), the build fork ran ASW_ELECON's
+  headless build before snapshotting `Deployment/`, overwriting Martin's own
+  uncommitted `v001.10` rebuild (after his `LEMON.c` edit) with a build that
+  also baked in VARS2. Fixed: reverted the 3 affected files to git HEAD
+  (confirmed with Martin first). `Core/Src/LEMON.c` itself was never
+  touched.
+- `ASW_IOBOARD_D/Deployment/v001.00/*` shows modified vs. git HEAD (BUILD
+  TIME 14.02.2026) — checked and this **predates all of this work** (it was
+  already like that in the very first `git status` taken before any
+  VARS2-step1 branch existed); neither build round touched it. Pre-existing
+  Martin drift, left alone, not a VARS2 regression.
+
 ## Open points for Martin
 
-- ASW_RECU_NUCLEO drift (see above) — confirm the chosen approach once this
-  step's diff is ready for review.
-- Desk test (step 6) and live-node flash order recommendation: see final
-  report.
+- ASW_RECU_NUCLEO drift — resolved, synced (decided 2026-11-01, see above).
+- TECHM headless build dialog (see "Build results" above) — needs a one-time
+  IDE build or a workspace-preference pointer; not a VARS2 issue.
+- Desk test (step 6, physical ELECON_TEST board on the desk CAN bus) needs
+  Martin's hands-on execution — not something drivable from here.
+- Live-node flash order recommendation: see final chat report.
