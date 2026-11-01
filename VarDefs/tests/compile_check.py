@@ -1,10 +1,12 @@
 """
 compile_check.py - PC compile + sanity check of the generated VARS2 FW code.
 
-1. gcc -std=c99 -Wall -Wextra -c generated/uha_vars_gen.c (stub main.h before
-   UHA_COMMON/Inc); any warning or error fails.
+1. gcc -std=c99 -Wall -Wextra -c UHA_COMMON/Src/uha_vars_gen.c (stub main.h
+   plus UHA_COMMON/Inc); any warning or error fails.
 2. Builds and runs a small test program (temp dir) that checks the tables
    at runtime (ids sorted, index table consistent, pValue inside Vars2, ...).
+
+Run tools/gen_all.py first so uha_vars_gen.h/.c are up to date.
 
 Usage (from UHA_COMMON/VarDefs or anywhere):
     python tests/compile_check.py [--cc gcc]
@@ -20,9 +22,9 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 VARDEFS = os.path.dirname(HERE)
-GEN = os.path.join(VARDEFS, "generated")
 STUB = os.path.join(HERE, "stub")
 INC = os.path.normpath(os.path.join(VARDEFS, "..", "Inc"))
+SRC = os.path.normpath(os.path.join(VARDEFS, "..", "Src"))
 
 TEST_PROGRAM = r"""
 #include <stdio.h>
@@ -97,8 +99,8 @@ def main() -> int:
         return 2
 
     flags = ["-std=c99", "-Wall", "-Wextra", "-pedantic"]
-    incs = ["-I", GEN, "-I", STUB, "-I", INC]
-    src = os.path.join(GEN, "uha_vars_gen.c")
+    incs = ["-I", STUB, "-I", INC]
+    src = os.path.join(SRC, "uha_vars_gen.c")
     tmp = tempfile.mkdtemp(prefix="vars2_cc_")
     try:
         obj = os.path.join(tmp, "uha_vars_gen.o")

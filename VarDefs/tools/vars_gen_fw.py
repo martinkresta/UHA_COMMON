@@ -12,7 +12,11 @@ but refuses to emit code for values it cannot render (missing int
 period/timeout, unknown producer, ...).
 
 Usage:
-    python tools/vars_gen_fw.py <yaml> [-o <outdir>]
+    python tools/vars_gen_fw.py <yaml> [--inc-dir DIR] [--src-dir DIR] [-o <outdir>]
+
+Default output: uha_vars_gen.h -> UHA_COMMON/Inc, uha_vars_gen.c -> UHA_COMMON/Src
+(both folders are compiled into every ASW project). -o/--outdir overrides both
+with a single directory (handy for the PC compile check / scratch use).
 """
 
 import argparse
@@ -244,12 +248,17 @@ def _write(path: str, text: str) -> bool:
     return True
 
 
-def generate(model: Model, outdir: str) -> List[str]:
-    """Write uha_vars_gen.h/.c into outdir; returns the paths of files actually rewritten."""
+def generate(model: Model, inc_dir: str, src_dir: str) -> List[str]:
+    """Write uha_vars_gen.h into inc_dir and uha_vars_gen.c into src_dir;
+    returns the paths of files actually rewritten."""
     _check(model)
-    os.makedirs(outdir, exist_ok=True)
+    os.makedirs(inc_dir, exist_ok=True)
+    os.makedirs(src_dir, exist_ok=True)
     written = []
-    for name, text in ((HDR_NAME, gen_header(model)), (SRC_NAME, gen_source(model))):
+    for name, outdir, text in (
+        (HDR_NAME, inc_dir, gen_header(model)),
+        (SRC_NAME, src_dir, gen_source(model)),
+    ):
         p = os.path.join(outdir, name)
         if _write(p, text):
             written.append(p)
@@ -257,11 +266,17 @@ def generate(model: Model, outdir: str) -> List[str]:
 
 
 def main(argv=None) -> int:
-    default_out = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "generated"))
+    tools_dir = os.path.dirname(os.path.abspath(__file__))
+    default_inc = os.path.normpath(os.path.join(tools_dir, "..", "..", "Inc"))
+    default_src = os.path.normpath(os.path.join(tools_dir, "..", "..", "Src"))
     ap = argparse.ArgumentParser(description="VARS2 FW C code generator")
     ap.add_argument("yaml")
-    ap.add_argument("-o", "--outdir", default=default_out)
+    ap.add_argument("--inc-dir", default=default_inc, help="output dir for uha_vars_gen.h")
+    ap.add_argument("--src-dir", default=default_src, help="output dir for uha_vars_gen.c")
+    ap.add_argument("-o", "--outdir", help="override: write both files into this single dir")
     a = ap.parse_args(argv)
+    inc_dir = a.outdir if a.outdir else a.inc_dir
+    src_dir = a.outdir if a.outdir else a.src_dir
     try:
         model = load_model(a.yaml)
         from vars_validate import validate   # never write from an invalid YAML
@@ -272,12 +287,12 @@ def main(argv=None) -> int:
             print(f"ERROR: {len(errs)} validation errors, nothing generated (run tools/gen_all.py)",
                   file=sys.stderr)
             return 1
-        written = generate(model, a.outdir)
+        written = generate(model, inc_dir, src_dir)
     except (VarsYamlError, GenError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
-    for name in (HDR_NAME, SRC_NAME):
-        p = os.path.join(a.outdir, name)
+    for name, outdir in ((HDR_NAME, inc_dir), (SRC_NAME, src_dir)):
+        p = os.path.join(outdir, name)
         print(f"{'written  ' if p in written else 'unchanged'} {p}")
     return 0
 

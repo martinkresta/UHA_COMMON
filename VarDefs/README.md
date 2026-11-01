@@ -12,12 +12,15 @@ Requirements: Python 3 + PyYAML (`pip install pyyaml`). gcc only for the PC comp
 python tools/gen_all.py
 ```
 
-Validates `uha_vars.yaml` and, if there are no errors, regenerates `generated/uha_vars_gen.h/.c`
-(files are rewritten only when their content changes). Exit code: 0 OK, 1 validation errors
-(nothing generated), 2 YAML cannot be read.
+Validates `uha_vars.yaml` and, if there are no errors, regenerates `UHA_COMMON/Inc/uha_vars_gen.h`
+and `UHA_COMMON/Src/uha_vars_gen.c` (files are rewritten only when their content changes). Those
+two folders are linked into every ASW project, so the generated files are compiled into every
+node. Exit code: 0 OK, 1 validation errors (nothing generated), 2 YAML cannot be read.
 
 Options: `--baseline <old released yaml>` (compatibility check), `--src-root C:\Martin\GIT\UHA_FW`
-(cross-check `ELM_AddMeter()` calls in the ASW sources), `-o <dir>` (output folder).
+(cross-check `ELM_AddMeter()` calls in the ASW sources), `--inc-dir`/`--src-dir` (override one of
+the two output folders), `-o <dir>` (override: write both files into this single dir, e.g. for a
+scratch compile check).
 
 ## Files
 
@@ -28,8 +31,9 @@ Options: `--baseline <old released yaml>` (compatibility check), `--src-root C:\
 | `tools/vars_validate.py` | Validator (CLI + `validate()`); errors/warnings with YAML line numbers |
 | `tools/vars_gen_fw.py` | FW generator (CLI + `generate()`) |
 | `tools/gen_all.py` | Validate + generate |
-| `generated/VARS2_types.h` | Hand-written: `eVarType`, `sVarMeta`, flags |
-| `generated/uha_vars_gen.h/.c` | **Generated – do not edit** |
+| `../Inc/VARS2_types.h` | Hand-written: `eVarType`, `sVarMeta`, flags |
+| `../Inc/uha_vars_gen.h`, `../Src/uha_vars_gen.c` | **Generated – do not edit.** Compiled into every ASW project (new file: each project's `.project`/`.cproject` needs a linked-resource entry, same as the other `UHA_COMMON/Inc`/`Src` files) |
+| `../Inc/VARS2.h`, `../Src/VARS2.c` | Hand-written VARS2 module (RX/TX, validity, timeout) — see `VARS2_spec.md` |
 | `tests/run_validator_tests.py` | Runs the validator on `tests/fixtures/` (`pass_*` / `fail_*`) |
 | `tests/compile_check.py` | Compiles the generated C with `gcc -std=c99 -Wall -Wextra -pedantic` on the PC (stubs in `tests/stub/`) and runs table consistency checks |
 
@@ -46,9 +50,9 @@ Options: `--baseline <old released yaml>` (compatibility check), `--src-root C:\
   timeout, legacy `VAR_*` id, type, producer `NODEID_*`, flags) and
   `const uint16_t VarIdToIndex[VAR_MAX_ID + 1]` (`VAR_IDX_UNKNOWN` = 0xFFFF).
 
-The generated `.c` includes `VARS.h` and `MCAN.h` from `UHA_COMMON/Inc`.
-It stays in `generated/` until a later migration step moves it to `UHA_COMMON/Src`/`Inc`
-(those folders are compiled into every node).
+The generated `.c` includes `VARS.h` and `MCAN.h` from `UHA_COMMON/Inc`. Since migration step 1
+it lives in `UHA_COMMON/Inc`/`Src` directly (those folders are compiled into every node), not in
+this `VarDefs/generated/` folder anymore.
 
 ## Rules for changing the YAML
 
