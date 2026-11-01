@@ -103,6 +103,45 @@ headless build list in step 4.
    physical CAN bus; not something this environment can drive.
 7. Small logical commits on `vars2-step1`, no merge.
 
+## Independent review (fresh agent, did not write the code) — PASS
+
+No blocking bugs. Confirmed: old protocol (`VARS.c/.h`, `MCAN.c/.h`, old
+`0x110` path in `COM.c`) byte-identical to before in every repo except the
+approved RECU_NUCLEO sync; frame layout matches spec sec.2 byte-for-byte on
+both TX and RX; `COM_GetRxMessage()`'s `(StdId & 0x7F0) == 0x180` mask
+collides with no other COBID in use and the consume-loop is bounded by the
+RX ring buffer size; all 257 generated rows have `legacyId == id` (the
+"legacy id == VARS2 id" shortcut holds, 0 mismatches); every
+`COM_AddStreamedVariable`/`COM_SendVariable` call site across all ASW
+projects (159 sites) resolves to a defined, `on_can` VARS2 variable (the two
+exceptions are already commented-out code); RAM delta (~3.08 KB) is
+negligible on every target including the smallest (L431RC, 64 KB RAM);
+ASW_ELECON_D's 5 new `<link>` entries are correct and unexcluded;
+RECU_NUCLEO's local copy is a byte-for-byte full match of UHA_COMMON;
+generator output is deterministic (`gen_all.py` re-run changes nothing);
+`run_validator_tests.py` 63/63, `compile_check.py` and `test_vars2.py` both
+pass.
+
+Two non-blocking notes, both already anticipated as step-6-not-step-1 concerns:
+- **Latent, matters at step 6, not now:** `VARS2_SendLegacy()` writes the
+  value into `Vars2` but does not refresh `mState[idx].RxTick`/`.Valid` for
+  the producer's own variables — after `TimeoutMs` with no further send,
+  `VARS2_IsValid()` on a node's own produced value would read as "timed
+  out" even though it's being actively (re)sent. Nothing reads
+  `VARS2_IsValid()` in step 1, so no effect now. Before step 6 (first module
+  that reads `Vars2`), either have `VARS2_SendLegacy()` also refresh
+  `RxTick`/set `Valid`, or give producer-local variables a different check
+  (e.g. skip the timeout for `VarMeta[idx].Producer == thisNodeId`).
+- **Minor, theoretical:** `VARS2_ProcessFrame()`/`COM_GetRxMessage()` don't
+  check DLC or RTR on a `0x18x` frame; a malformed/RTR frame from a
+  misbehaving sender would be decoded from stale buffer bytes. Not
+  reachable from any node in this codebase today.
+
+Housekeeping noted by the reviewer, not touched (out of scope / not ours):
+`UHA_COMMON/VarDefs/VARS2_spec.md` has an unrelated working-tree
+modification and `vars2-step2-brief.md` is untracked there already —
+pre-existing, left alone.
+
 ## Open points for Martin
 
 - ASW_RECU_NUCLEO drift (see above) — confirm the chosen approach once this
