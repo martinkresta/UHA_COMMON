@@ -36,7 +36,8 @@ static DMA_Channel_TypeDef gDmaTx, gDmaRx;
 static UART_HandleTypeDef gUart;
 
 static int16_t gRaw[NUM_OF_VARIABLES];
-int16_t VAR_GetVariable(uint16_t id, uint16_t* invalid) { if (id < NUM_OF_VARIABLES) return gRaw[id]; if (invalid) *invalid |= INVALID_FLAG; return 0; }
+int16_t VAR_GetVariableLegacy(uint16_t id, uint16_t* invalid) { if (id < NUM_OF_VARIABLES) return gRaw[id]; if (invalid) *invalid |= INVALID_FLAG; return 0; }
+int16_t VAR_GetVariable(uint16_t id, uint16_t* invalid) { return VAR_GetVariableLegacy(id, invalid); }
 void VAR_SetVariable(uint16_t id, int16_t v, uint8_t valid) { (void)valid; if (id < NUM_OF_VARIABLES) gRaw[id] = v; }
 static int gCanSent;
 uint8_t MCAN_SendFrame(uint16_t cobid, uint8_t* data, uint8_t dlc) { (void)cobid; (void)data; (void)dlc; gCanSent++; return 1; }

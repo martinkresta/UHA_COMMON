@@ -33,7 +33,7 @@ static void SetVar(uint16_t id, int16_t raw, uint8_t valid)
 	gValid[id] = valid;
 }
 
-int16_t VAR_GetVariable(uint16_t varId, uint16_t* invalid)
+int16_t VAR_GetVariableLegacy(uint16_t varId, uint16_t* invalid)
 {
 	if (varId < NUM_OF_VARIABLES)
 	{
