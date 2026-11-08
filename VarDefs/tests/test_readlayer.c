@@ -172,6 +172,24 @@ static void test_invalid_and_timeout(void)
 	CHECK(VAR_GetVariable(m->Id, &inv) == 541 && inv == 0);
 }
 
+static void test_clamp(void)
+{
+	/* a value outside the int16 range (never sent by a legacy producer) is clamped */
+	const sVarMeta* m = &VarMeta[VarIdToIndex[VID_BAT_VOLTAGE_V]];   /* float, scale 10 */
+	float big = 100000.0f, small = -100000.0f;
+	uint8_t frame[8] = { 0 };
+
+	VAR_EnableVars2Read();
+	VARS2_Init(OtherNode(m->Producer));
+	frame[0] = (uint8_t)(m->Id & 0xFFu); frame[1] = (uint8_t)(m->Id >> 8); frame[6] = 1;
+	memcpy(&frame[2], &big, 4);
+	VARS2_ProcessFrame(frame);
+	CHECK(VAR_GetVariable(m->Id, NULL) == 32767);
+	memcpy(&frame[2], &small, 4);
+	VARS2_ProcessFrame(frame);
+	CHECK(VAR_GetVariable(m->Id, NULL) == -32768);
+}
+
 static void test_transmission_uses_legacy(void)
 {
 	/* ELECON receives BMS1 SOC (producer ELECON_D) and sends its own: the sent frame
@@ -199,6 +217,7 @@ int main(void)
 	test_roundtrip_all_rows();
 	test_fallbacks();
 	test_invalid_and_timeout();
+	test_clamp();
 	test_transmission_uses_legacy();
 	printf("%d checks, %d failed\n", checks, fails);
 	printf(fails ? "TEST_READLAYER FAILED\n" : "TEST_READLAYER PASSED\n");

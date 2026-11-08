@@ -1,8 +1,8 @@
 """
 test_readlayer.py - PC unit test of the VARS2 read layer with gcc.
 
-Compiles VARS2.c + uha_vars_gen.c + test_readlayer.c (which mocks HAL_GetTick(),
-VAR_GetVariable() and MCAN_SendFrame() - VARS.c/MCAN.c are not linked) with
+Compiles VARS.c + VARS2.c + uha_vars_gen.c + test_readlayer.c (which mocks only
+HAL_GetTick() and MCAN_SendFrame(); MCAN.c is not linked) with
 `gcc -std=c99 -Wall -Wextra -pedantic`, then runs the resulting test program.
 
 Usage (from UHA_COMMON/VarDefs or anywhere):
