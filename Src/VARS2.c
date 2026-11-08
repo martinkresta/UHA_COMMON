@@ -18,6 +18,7 @@
 typedef struct
 {
 	uint8_t  Valid;
+	uint8_t  Received;   /* 1 after the first frame received by VARS2_ProcessFrame() */
 	uint32_t RxTick;
 } sVars2State;
 
@@ -40,6 +41,7 @@ void VARS2_Init(uint8_t thisNodeId)
 	for (i = 0; i < VARS_COUNT; i++)
 	{
 		mState[i].Valid = 1;   /* default after start = valid, spec sec.4 */
+		mState[i].Received = 0;
 		mState[i].RxTick = now;
 	}
 }
@@ -62,6 +64,7 @@ void VARS2_ProcessFrame(const uint8_t* data)
 
 	memcpy(VarMeta[idx].pValue, &data[2], 4);  /* raw 4B copy, Cortex-M is LE like the frame */
 	mState[idx].Valid = (data[6] & VARS2_FLAG_VALID) ? 1 : 0;
+	mState[idx].Received = 1;
 	mState[idx].RxTick = HAL_GetTick();
 }
 
@@ -78,7 +81,7 @@ static void BuildLegacyFrame(uint16_t idx, uint16_t legacyVarId, uint8_t* data)
 	int32_t i32;
 	const sVarMeta* meta = &VarMeta[idx];
 
-	raw = VAR_GetVariable(legacyVarId, &invalid);
+	raw = VAR_GetVariableLegacy(legacyVarId, &invalid);   /* transmission always publishes Vars[] */
 	valid = (invalid == INVALID_FLAG) ? 0 : 1;
 
 	if (meta->Type == VT_FLOAT)
@@ -189,6 +192,50 @@ void VARS2_UpdateLocal_10ms(VARS2_FrameHook cb)
 		}
 	}
 	mLocalInit = 1;
+}
+
+
+uint8_t VARS2_GetLegacy(uint16_t legacyVarId, int16_t* value, uint16_t* invalid)
+{
+	uint16_t idx;
+	const sVarMeta* meta;
+	float f32;
+	int32_t i32;
+
+	if (legacyVarId > VAR_MAX_ID)
+	{
+		return 0;
+	}
+	idx = VarIdToIndex[legacyVarId];   /* legacy id == VARS2 id in this migration step */
+	if (idx == VAR_IDX_UNKNOWN)
+	{
+		return 0;
+	}
+	meta = &VarMeta[idx];
+	if (meta->Producer == mThisNodeId || mState[idx].Received == 0)
+	{
+		return 0;
+	}
+
+	if (meta->Type == VT_FLOAT)
+	{
+		memcpy(&f32, meta->pValue, 4);
+		f32 *= meta->LegacyScale;
+		i32 = (int32_t)(f32 >= 0 ? f32 + 0.5f : f32 - 0.5f);   /* round to nearest, no libm */
+	}
+	else   /* integer value, as BuildLegacyFrame() writes it */
+	{
+		memcpy(&i32, meta->pValue, 4);
+	}
+	if (i32 > 32767) i32 = 32767;
+	if (i32 < -32768) i32 = -32768;
+	*value = (int16_t)i32;
+
+	if (!VARS2_IsValid((eVarId)meta->Id) && invalid != NULL)
+	{
+		*invalid |= INVALID_FLAG;
+	}
+	return 1;
 }
 
 

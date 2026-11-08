@@ -44,6 +44,14 @@ void VARS2_SendLegacy(uint16_t legacyVarId);
  * VARS2_Init() is valid) */
 void VARS2_SetValid(eVarId id, uint8_t valid);
 
+/* Read layer (VAR_GetVariable() on nodes with VAR_EnableVars2Read()): the
+ * received VARS2 value converted back to the legacy int16 (float: value *
+ * LegacyScale rounded to nearest). Returns 0 = caller uses the old Vars[]:
+ * unknown id, own variable (Producer == this node) or nothing received yet.
+ * If the value is invalid or timed out, INVALID_FLAG is set in *invalid
+ * (may be NULL) and the last value is still returned. */
+uint8_t VARS2_GetLegacy(uint16_t legacyVarId, int16_t* value, uint16_t* invalid);
+
 /* valid flag && not timed out (VarMeta.TimeoutMs since last update) */
 uint8_t VARS2_IsValid(eVarId id);
 

@@ -255,7 +255,7 @@ static void SendVariable(uint16_t id)
 {
 	uint16_t invalid = 0;
 	uint16_t validflag = 0;
-	int16_t tmp = VAR_GetVariable(id, &invalid);
+	int16_t tmp = VAR_GetVariableLegacy(id, &invalid);   // transmission always publishes Vars[]
 	validflag = (invalid == INVALID_FLAG ? 0 : 1);
 	uint8_t data[8];
 	data[0] = id >> 8;
