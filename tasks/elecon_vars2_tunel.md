@@ -64,7 +64,8 @@ same spec — do not change the format; if the spec is unclear, ask Martin.
 
 ## 3. Constraints
 
-- Repos (branch `vars2-step2`, from `vars2-step1`, in each):
+- Repos (feature branch `feature/elecon_vars2_tunel`, from `main`, or `master`
+  in `ASW_TECHM`, in each):
   - code changes: `UHA_COMMON`, `ASW_ELECON`, `ASW_RECU_NUCLEO` (its local
     copy of the fixed files);
   - version, `Deployment/` and changelog only: `ASW_ELECON_D`,
@@ -128,7 +129,7 @@ same spec — do not change the format; if the spec is unclear, ask Martin.
 6. Desk test (CAN side only): ELECON build on the desk board still sends old
    and VARS2 frames on CAN as in step 1, no regressions. Record in
    `step2-notes.md`.
-7. Small logical commits on `vars2-step2` in every repo listed in §3,
+7. Small logical commits on the feature branch in every repo listed in §3,
    including the new `Deployment/vXXX.YY/` artifacts and
    `Deployment/CHANGELOG.md`. Do not merge.
 
