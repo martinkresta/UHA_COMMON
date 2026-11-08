@@ -23,6 +23,12 @@ typedef struct
 
 static sVars2State mState[VARS_COUNT];  /* indexed like VarMeta[]/VarIdToIndex[] */
 static uint8_t mThisNodeId;
+static VARS2_FrameHook mFrameHook;   /* NULL = no hook (all nodes except ELECON) */
+
+/* ELECON-local (not on CAN) publishing: low 16 bits of last send tick per row */
+#define VARS2_LOCAL_MAX_PER_CALL  4u   /* bounds the burst per 10 ms tick */
+static uint16_t mLocalTick[VARS_COUNT];
+static uint8_t  mLocalInit;
 
 
 void VARS2_Init(uint8_t thisNodeId)
@@ -60,27 +66,17 @@ void VARS2_ProcessFrame(const uint8_t* data)
 }
 
 
-void VARS2_SendLegacy(uint16_t legacyVarId)
+/* Converts the old Vars[] value (+ validity) of row idx into a VARS2 frame,
+ * stores the converted value into Vars2 and refreshes the producer's own
+ * state (so VARS2_IsValid() of an own value does not time out). */
+static void BuildLegacyFrame(uint16_t idx, uint16_t legacyVarId, uint8_t* data)
 {
 	uint16_t invalid = 0;
 	int16_t raw;
 	uint8_t valid;
-	uint8_t data[8];
 	float f32;
 	int32_t i32;
-	uint16_t idx;
-	const sVarMeta* meta;
-
-	if (legacyVarId > VAR_MAX_ID)
-	{
-		return;   /* no VARS2 definition yet */
-	}
-	idx = VarIdToIndex[legacyVarId];   /* legacy id == VARS2 id in this migration step */
-	if (idx == VAR_IDX_UNKNOWN)
-	{
-		return;
-	}
-	meta = &VarMeta[idx];
+	const sVarMeta* meta = &VarMeta[idx];
 
 	raw = VAR_GetVariable(legacyVarId, &invalid);
 	valid = (invalid == INVALID_FLAG) ? 0 : 1;
@@ -96,13 +92,103 @@ void VARS2_SendLegacy(uint16_t legacyVarId)
 		memcpy(meta->pValue, &i32, 4);
 	}
 
+	mState[idx].Valid = valid;
+	mState[idx].RxTick = HAL_GetTick();
+
 	data[0] = (uint8_t)(meta->Id & 0xFFu);
 	data[1] = (uint8_t)(meta->Id >> 8);
 	memcpy(&data[2], meta->pValue, 4);
 	data[6] = valid ? VARS2_FLAG_VALID : 0;
 	data[7] = 0;   /* seq, reserved */
+}
+
+
+void VARS2_SendLegacy(uint16_t legacyVarId)
+{
+	uint8_t data[8];
+	uint16_t idx;
+
+	if (legacyVarId > VAR_MAX_ID)
+	{
+		return;   /* no VARS2 definition yet */
+	}
+	idx = VarIdToIndex[legacyVarId];   /* legacy id == VARS2 id in this migration step */
+	if (idx == VAR_IDX_UNKNOWN)
+	{
+		return;
+	}
+
+	BuildLegacyFrame(idx, legacyVarId, data);
 
 	MCAN_SendFrame(VARS2_COBID_BASE + mThisNodeId, data, 8);
+	if (mFrameHook != NULL)
+	{
+		mFrameHook(VARS2_COBID_BASE + mThisNodeId, data);
+	}
+}
+
+
+void VARS2_SetFrameHook(VARS2_FrameHook hook)
+{
+	mFrameHook = hook;
+}
+
+
+uint8_t VARS2_ProcessRxFrame(uint16_t cobId, uint8_t dlc, uint8_t rtr, const uint8_t* data)
+{
+	if (dlc != 8 || rtr)
+	{
+		return 0;   /* malformed: dropped, neither stored nor forwarded */
+	}
+	VARS2_ProcessFrame(data);
+	if (mFrameHook != NULL)
+	{
+		mFrameHook(cobId, data);
+	}
+	return 1;
+}
+
+
+void VARS2_UpdateLocal_10ms(VARS2_FrameHook cb)
+{
+	uint16_t idx;
+	uint16_t k = 0;
+	uint8_t sent = 0;
+	uint32_t now = HAL_GetTick();
+	uint8_t data[8];
+
+	if (cb == NULL)
+	{
+		return;
+	}
+
+	for (idx = 0; idx < VARS_COUNT; idx++)
+	{
+		const sVarMeta* meta = &VarMeta[idx];
+
+		if (meta->Producer != mThisNodeId || (meta->Flags & VMF_ON_CAN) ||
+		    meta->PeriodMs == 0 || meta->LegacyId == VAR_LEGACY_NONE)
+		{
+			continue;
+		}
+
+		if (mLocalInit == 0)
+		{
+			/* first call: spread the first sends, k-th row due k*10 ms from now */
+			mLocalTick[idx] = (uint16_t)(now - meta->PeriodMs + (uint16_t)((k * 10u) % meta->PeriodMs));
+			k++;
+			continue;
+		}
+
+		if ((uint16_t)((uint16_t)now - mLocalTick[idx]) >= meta->PeriodMs && sent < VARS2_LOCAL_MAX_PER_CALL)
+		{
+			BuildLegacyFrame(idx, meta->LegacyId, data);
+			mLocalTick[idx] = (uint16_t)now;
+			cb(VARS2_COBID_BASE + mThisNodeId, data);
+			sent++;
+		}
+	}
+	mLocalInit = 1;
 }
 
 
