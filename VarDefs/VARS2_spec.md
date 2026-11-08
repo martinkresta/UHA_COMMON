@@ -155,10 +155,10 @@ uint8_t VARS2_IsValid(eVarId id);                   /* RX flag && not timed out 
 
 ---
 
-## 5. Other generated outputs
+## 5. Other consumers of the YAML
 
-- **RPi gateway (C++):** ID → name/unit/type table, JSON output.
-- **PC tool (C#):** reads `uha_vars.yaml` directly at runtime (no codegen).
+- **RPi gateway UhaGatePy (Python):** reads `uha_vars.yaml` directly at runtime (no codegen).
+- **PC tool UhaCanMaster (C#):** reads `uha_vars.yaml` directly at runtime (no codegen).
 
 ---
 
@@ -168,8 +168,8 @@ uint8_t VARS2_IsValid(eVarId id);                   /* RX flag && not timed out 
 |------|------|-------|
 | 0 | YAML, validator, FW generator | Python, in `UHA_COMMON/VarDefs` |
 | 1 | All nodes: send old + new format, receive both; control uses old data | ~2× traffic (~140 frames/s, ~7 %) |
-| 2 | ELECON → RPi bridge (RPISERP) on new format | |
-| 3 | RPi app on new format | |
+| 2 | ELECON → RPi bridge: VARS2 tunnel over RPISERP (§7), old `0x221` kept | ELECON FW only |
+| 3 | New RPi gateway **UhaGatePy** (Python) reads VARS2 tunnel + old `0x221` | UhaGate6 (C++) stays as backup |
 | 4 | Flash ELECON + RPi, verify data | |
 | 5 | PC tool on new format | old format not supported in PC tool |
 | 6a | Nodes switch reading to new format, one by one | any order (all send both) |
@@ -177,3 +177,69 @@ uint8_t VARS2_IsValid(eVarId id);                   /* RX flag && not timed out 
 
 Dependency map: `vars_dependency_map.md` (only mutual dependency:
 ELECON ↔ ELECON_D).
+
+---
+
+## 7. ELECON → RPi link: VARS2 tunnel over RPISERP
+
+The RPi is not on CAN. ELECON (node 4) forwards data to the RPi over a
+USB-serial link (UART, 115200 Bd, 8N1) using the existing **RPISERP**
+framing. Step 2 adds the VARS2 tunnel; everything existing stays.
+
+### 7.1 RPISERP framing (unchanged)
+
+```
+byte 0     0x7F
+byte 1     0xAA
+byte 2     len        payload length = 2 + data length (2..10)
+byte 3..4  packet id  uint16, BIG-endian (hi, lo)
+byte 5..   data       len - 2 bytes (0..8)
+last       checksum   8-bit sum of all preceding bytes of the frame (from 0x7F)
+```
+Max frame 14 bytes. Payload max 10 bytes (`RSP_PACKET_SIZE` 14 in ELECON).
+
+### 7.2 Packet ids
+
+| Packet id | Dir | Data | Status |
+|-----------|-----|------|--------|
+| `0x221` | ELECON → RPi | old variable: `id_hi id_lo val_hi val_lo valid_hi valid_lo` (int16, big-endian), from ELECON's scan list | **kept** until migration step 6b |
+| `0x620` | ELECON → RPi | node log message, 8 bytes (byte 0 = node id) | kept |
+| `0x051` | RPi → ELECON | RTC sync (4 B big-endian time) | kept |
+| `0x050`, `0x120`, `0x713`, `0x777` | RPi → ELECON | var value / set var / read var request / master HB | kept, unused by the gateway today |
+| **`0x180 + n`** (`0x180..0x18F`) | ELECON → RPi | **VARS2 tunnel:** the 8 data bytes of a VARS2 CAN frame, unchanged (spec §2: `id u16 LE, value 4B LE, flags, seq`). `n` = producer node id | **new** |
+
+Note: inside the tunnel payload the variable id and value are
+**little-endian** (copied from CAN), while the RPISERP packet id is
+big-endian. Payload = 2 + 8 = 10 bytes (fits).
+
+### 7.3 What ELECON puts into the tunnel
+
+1. **Every VARS2 frame received from CAN** (any node), immediately, packet id =
+   the CAN COB-ID (`0x180 + producer`).
+2. **Every VARS2 frame ELECON itself sends on CAN** (its `on_can` variables),
+   packet id `0x184`.
+3. **ELECON-local variables with `on_can: false`** (producer ELECON, flag
+   `VMF_ON_CAN` not set in `VarMeta`): sent **only** over the tunnel, packet id
+   `0x184`, with `VarMeta.PeriodMs`, value/validity converted from the old
+   `Vars[]` exactly like `VARS2_SendLegacy` (spec §4).
+
+The RPi does not distinguish 1/2/3 — producer = `packet id & 0x0F`.
+
+### 7.4 Throughput
+
+- Old scan list: up to 100 packets/s (unchanged, 1 per 10 ms).
+- Tunnel: ~70/s (VARS2 on CAN) + ~44/s (ELECON-local) ≈ 115/s.
+- Total ≈ 215 packets/s; link capacity at 115200 Bd ≈ 800 frames/s (14 B).
+- **Today ELECON transmits max 1 RPISERP frame per 10 ms (`RSP_TransmitFromFifo`
+  from `SCOM_Update_10ms`) with a TX FIFO of 10 frames** — step 2 must raise
+  this (start the next DMA transfer on TX-complete, larger FIFO) so that
+  ≥ 300 frames/s are possible without drops; FIFO overflows must be counted.
+
+### 7.5 Gateway side (UhaGatePy)
+
+- Accepts `0x221` (old) and `0x180..0x18F` (VARS2) in parallel.
+- Per variable: prefer the VARS2 value while it is fresh (age ≤ `timeout_ms`),
+  otherwise the old value.
+- Old-format outputs (`uha.json`, `bms.json`) are produced from the preferred
+  value converted back with `legacy_scale` (`round(value * legacy_scale)`), so
+  the web and other readers are unchanged.
