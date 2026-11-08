@@ -367,7 +367,14 @@ typedef struct
 
 void VAR_Init(void);
 
+/* Returns remote variables from Vars2 (converted back to the legacy int16) once
+ * VAR_EnableVars2Read() was called and the value was received; otherwise the
+ * old Vars[]. Own variables always come from Vars[]. */
 int16_t VAR_GetVariable(uint16_t varId, uint16_t* invalid);
+/* always reads the old Vars[] */
+int16_t VAR_GetVariableLegacy(uint16_t varId, uint16_t* invalid);
+/* switch VAR_GetVariable() to the VARS2 read layer (call after COM_Init()) */
+void VAR_EnableVars2Read(void);
 int16_t* VAR_GetVariablePointer(uint16_t varId, uint16_t* invalid);
 void VAR_SetVariable(uint16_t varId, int16_t value, uint8_t valid);
 

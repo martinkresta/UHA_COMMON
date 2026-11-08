@@ -7,11 +7,14 @@
 
 
 #include "VARS.h"
+#include "VARS2.h"
 #include "main.h"
 
 sVar Vars[NUM_OF_VARIABLES];
 
 int16_t mDummyVar = 0x8000;
+
+static uint8_t mReadVars2;
 
 
 void VAR_Init(void)
@@ -25,7 +28,23 @@ void VAR_Init(void)
 	}
 }
 
+void VAR_EnableVars2Read(void)
+{
+	mReadVars2 = 1;
+}
+
 int16_t VAR_GetVariable(uint16_t varId, uint16_t* invalid)
+{
+	int16_t value;
+
+	if (mReadVars2 && VARS2_GetLegacy(varId, &value, invalid))
+	{
+		return value;
+	}
+	return VAR_GetVariableLegacy(varId, invalid);
+}
+
+int16_t VAR_GetVariableLegacy(uint16_t varId, uint16_t* invalid)
 {
 	if (varId < NUM_OF_VARIABLES)
 	{
