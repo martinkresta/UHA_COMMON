@@ -59,10 +59,11 @@ typedef enum
   esit_CanTxDrops,         // txRingDropCnt
   esit_CanTxOk,            // txOkCnt
   esit_CanTxStall,         // stallFailCnt<<16 | stallRecoveryCnt (16 bit)
-  esit_CanTxIdleMs,        // ms since last TXOK (or since nothing was pending)
+  esit_CanTxIdleMs,        // ms since last TXOK
   esit_CanErrStat,         // busOffCnt<<24 | errPassiveCnt<<16 (8 bit sat.) | recMax<<8 | tecMax
   esit_CanEsrAtStall,      // ESR captured at the last recovery
-  esit_CanHalError         // hcan->ErrorCode (sticky HAL error bits)
+  esit_CanHalError,        // HAL_CAN_ERROR_* bits EWG..CRC seen since start
+  esit_CanRepairs          // ptrRepairCnt<<24 | halStateRepairCnt<<16 | errLogCnt (16 bit)
 }eSysInfoType;
 
 typedef enum

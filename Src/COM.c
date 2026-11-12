@@ -256,10 +256,11 @@ uint8_t COM_SendSysInfoCommon(uint8_t type)
     case esit_CanTxDrops:    v = d->txRingDropCnt; break;
     case esit_CanTxOk:       v = d->txOkCnt; break;
     case esit_CanTxStall:    v = ((uint32_t)d->stallFailCnt << 16) | (d->stallRecoveryCnt & 0xFFFFu); break;
-    case esit_CanTxIdleMs:   v = HAL_GetTick() - d->lastProgressTick; break;
+    case esit_CanTxIdleMs:   v = HAL_GetTick() - d->lastTxOkTick; break;
     case esit_CanErrStat:    v = (Sat8(d->busOffCnt) << 24) | (Sat8(d->errPassiveCnt) << 16) | ((uint32_t)d->recMax << 8) | d->tecMax; break;
     case esit_CanEsrAtStall: v = d->esrAtStall; break;
-    case esit_CanHalError:   v = MCAN_GetHalErrorCode(); break;
+    case esit_CanHalError:   v = d->halErrSeen; break;
+    case esit_CanRepairs:    v = (Sat8(d->ptrRepairCnt) << 24) | (Sat8(d->halStateRepairCnt) << 16) | (d->errLogCnt & 0xFFFFu); break;
     default:                 return 0;
   }
   COM_SendSysInfo((eSysInfoType)type, v);

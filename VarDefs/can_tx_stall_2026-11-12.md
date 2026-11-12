@@ -1,9 +1,40 @@
 # CAN TX stall of ELECON (node 4) and ELECON_D (node 7), 2026-11-12
 
-Status: analysis from code + proposal on branch `feature/can_tx_supervision` (UHA_COMMON, ASW_ELECON, ASW_ELECON_D,
-ASW_ELECON_TEST). Not merged, no version bump, no Deployment artifacts, nothing flashed.
+Status: analysis from code + implementation on branch `feature/can_tx_supervision` (UHA_COMMON, ASW_ELECON,
+ASW_ELECON_D, ASW_ELECON_TEST). Not merged. Built as ELECON v001.14 and ELECON_D v001.19 for test flashing.
 
-## 1. Short answer
+## 0. Revision 2 (after review): bus-off is not proven, software stall is equally likely
+
+Martin's objection: the nodes still received frames, and RM0394 says a bus-off bxCAN cannot receive. So a lasting
+bus-off is doubtful, and ABOM alone is not a fix to rely on. What still holds is that the TX path stopped while the 5 ms
+task kept running (sec. 3). But a corrupted `mMcan.TxBuf`, `mMcan.CanHw` or `hcan1.State` also stops TX silently
+with RX alive: `CB_Put/CB_Probe(NULL)` do nothing, and a wrong HAL state makes `AddTxMessage` fail forever. Both
+nodes got new shared code (VARS2 steps 2 and 3) on 08.11 and went quiet about 4 days later. Changes in revision 2:
+
+- **Dead-TX rule:** no TXOK for `MCAN_TX_DEAD_MS` (12 s) is a stall even if nothing looks pending (the heartbeat
+  guarantees one frame per 5 s). The 3 s pending rule stays.
+- **Self-reset on by default** (`MCAN_TX_STALL_RESET_AFTER = 5`): about 18 s (pending) or 27 s (dead) without any
+  transmitted frame, then `NVIC_SystemReset()`. STARTUP byte 3 = 30. This is the only cure for a state that the
+  peripheral recovery cannot repair.
+- **Software snapshot at the stall** (report `0x03`): HAL state, TX ring level, TME bits, TxBuf NULL, ring not empty,
+  mailbox-busy count, reason. A HAL state outside READY/LISTENING is put back to LISTENING (counted).
+- **Pointer guard:** `mMcan.TxBuf/Rx0Buf/Rx1Buf/CanHw` are compared every 10 ms with a shadow copy (value + inverted
+  value). A difference is restored and reported (`0x04` with the corrupted value, which hints at the writer).
+- **TEC/REC monitor** (report `0x02`): immediate report on a new error-warning / error-passive / bus-off (from ESR,
+  or from the HAL `ErrorCode` bits that the RX interrupt sets, which also catches a short bus-off between two 10 ms
+  samples), at most one per 10 s. Also a summary per 60 s window if TEC or REC peaked at >= 16 or a flag was seen.
+  It reports the error types too (stuff, form, ACK, bit, CRC). TEC rising without REC points at the node's own TX
+  side; both rising point at the bus.
+
+All reports are `0x620` eleError frames: `[node, 1, code, 5 bytes]`. Codes and byte layout are in `MCAN.h`
+(`MCAN_ERR_*`). ELECON sends them over SCOM, the others over CAN.
+
+Memory layout check (deployed .map files): `mMcan` sits after GEST data in ELECON_D (0x200008b4) and after ELM
+data in ELECON (0x20000700), followed by `mNodes` in both. The VARS2 data is not adjacent in either node, so a single
+shared linear overrun into `mMcan` is unlikely. The TX ring itself is on the heap (`CB_Create`, malloc), between the
+other early allocations. The pointer guard and the snapshot will tell next time.
+
+## 1. Short answer (revision 1)
 
 - **Most likely cause:** both nodes went **bus-off** and stayed there. ELECON, ELECON_D and ELECON_TEST are the only
   projects with `hcan1.Init.AutoBusOff = DISABLE` (ABOM = 0). All other nodes have `ENABLE`. No code anywhere runs
@@ -135,7 +166,7 @@ cleared, so CAN keeps running while halted). Watch `hcan1.Instance->ESR`, `->TSR
   into the just-recovered ring. The master node (ELECON) sends it over SCOM, which does not depend on CAN. Before a
   self-reset it writes `LOG_FUNC_ID_CAN_TX_STALL` (30) to the RTC backup register, so the STARTUP log shows the
   reason.
-- Self-reset after `MCAN_TX_STALL_RESET_AFTER` failed recoveries in a row: **default 0 = off**, because a node alone
+- (Revision 2: the default is now 5, see section 0.) Self-reset after `MCAN_TX_STALL_RESET_AFTER` failed recoveries in a row: originally default 0 = off, because a node alone
   on the bus (no ACK) would reset itself and a reset toggles the ELECON_D relays. Suggested value if wanted: 5 (about
   18 s of silence).
 - `Send()`: counts full-ring drops (`txRingDropCnt`), tracks the ring high-water mark, returns 0/1, Put under IRQ
@@ -154,7 +185,8 @@ cleared, so CAN keeps running while halted). Watch `hcan1.Instance->ESR`, `->TSR
   | 0x16 | ms since last TXOK (or since nothing was pending) |
   | 0x17 | bus-off edges << 24 \| error-passive edges << 16 \| REC max << 8 \| TEC max |
   | 0x18 | ESR at last recovery |
-  | 0x19 | HAL `ErrorCode` |
+  | 0x19 | HAL error bits EWG..CRC seen since start (rev. 2; `ErrorCode` itself is now consumed by the monitor) |
+  | 0x1A | pointer repairs << 24 \| HAL state repairs << 16 \| error reports (16 bit) (rev. 2) |
 
 - Test: `VarDefs/tests/test_mcan.py` (host gcc, simulated bxCAN with rc_w1/ABRQ/INRQ semantics, built with and
   without self-reset). It covers normal traffic, an idle node, a healed bus-off, a persistent stall, a full ring and

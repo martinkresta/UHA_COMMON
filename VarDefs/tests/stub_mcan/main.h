@@ -23,7 +23,12 @@ typedef struct
 } CAN_TypeDef;
 
 typedef struct { uint32_t AutoBusOff; } CAN_InitTypeDef;
-typedef struct { CAN_TypeDef* Instance; CAN_InitTypeDef Init; volatile uint32_t ErrorCode; } CAN_HandleTypeDef;
+typedef enum
+{
+  HAL_CAN_STATE_RESET = 0, HAL_CAN_STATE_READY, HAL_CAN_STATE_LISTENING, HAL_CAN_STATE_SLEEP_PENDING,
+  HAL_CAN_STATE_SLEEP_ACTIVE, HAL_CAN_STATE_ERROR
+} HAL_CAN_StateTypeDef;
+typedef struct { CAN_TypeDef* Instance; CAN_InitTypeDef Init; volatile HAL_CAN_StateTypeDef State; volatile uint32_t ErrorCode; } CAN_HandleTypeDef;
 
 typedef struct { uint32_t StdId; uint32_t ExtId; uint32_t IDE; uint32_t RTR; uint32_t DLC; uint32_t TransmitGlobalTime; } CAN_TxHeaderTypeDef;
 typedef struct { uint32_t StdId; uint32_t ExtId; uint32_t IDE; uint32_t RTR; uint32_t DLC; } CAN_RxHeaderTypeDef;

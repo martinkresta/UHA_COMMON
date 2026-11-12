@@ -18,13 +18,30 @@ void Set_Filter_Id_Mask (CAN_HandleTypeDef *hcan, uint8_t fifo,  uint8_t bank, u
 static uint8_t Send(s_CanTxMsg msg);
 static void PollTxCompletion(uint32_t now);
 static void SuperviseTx(uint32_t now);
-static void RecoverTx(uint32_t now);
+static void RecoverTx(uint32_t now, uint8_t reason);
+static void MonitorErrors(uint32_t now, uint32_t esr);
+static void CheckPointers(void);
 
 static CAN_handle mMcan;
 
 static s_McanDiag mDiag;
 static uint8_t mLastBoff;
 static uint8_t mLastEpv;
+
+// error counter monitor state
+static uint8_t  mErrLevelPrev;     // ESR EWGF/EPVF/BOFF at the previous sample
+static uint8_t  mWinFlags;         // flags seen in the current window
+static uint8_t  mWinTecPeak;
+static uint8_t  mWinRecPeak;
+static uint8_t  mWinErrTypes;      // HAL STF..CRC bits >> 3
+static uint32_t mWinStartTick;
+static uint32_t mLastErrLogTick;
+static uint8_t  mErrLogSent;       // at least one immediate log sent (holdoff valid)
+
+// shadow copies of the mMcan pointers (value + inverted value) to detect and repair corruption.
+// Kept apart from mMcan on purpose; a stray write would have to hit both copies consistently.
+typedef struct { uintptr_t val; uintptr_t inv; } s_PtrShadow;
+static s_PtrShadow mShadow[4];     // 0 TxBuf, 1 Rx0Buf, 2 Rx1Buf, 3 CanHw
 
 static s_CanNode mNodes[MAX_NUM_OF_NODES];
 
@@ -100,6 +117,24 @@ void MCAN_Init(CAN_HandleTypeDef	* can, uint8_t id)
 	memset(&mDiag, 0, sizeof(mDiag));
 	mLastBoff = 0;
 	mLastEpv = 0;
+	mErrLevelPrev = 0;
+	mWinFlags = 0;
+	mWinTecPeak = 0;
+	mWinRecPeak = 0;
+	mWinErrTypes = 0;
+	mErrLogSent = 0;
+	mWinStartTick = HAL_GetTick();
+	mDiag.lastTxOkTick = mWinStartTick;
+	mDiag.lastProgressTick = mWinStartTick;
+
+	mShadow[0].val = (uintptr_t)mMcan.TxBuf;
+	mShadow[1].val = (uintptr_t)mMcan.Rx0Buf;
+	mShadow[2].val = (uintptr_t)mMcan.Rx1Buf;
+	mShadow[3].val = (uintptr_t)mMcan.CanHw;
+	for (i = 0; i < 4; i++)
+	{
+		mShadow[i].inv = ~mShadow[i].val;
+	}
 }
 
 
@@ -109,6 +144,8 @@ void MCAN_Start(void)
 {
 	HAL_CAN_Start(mMcan.CanHw);  // start can
 	mDiag.lastProgressTick = HAL_GetTick();
+	mDiag.lastTxOkTick = mDiag.lastProgressTick;
+	mWinStartTick = mDiag.lastProgressTick;
 	mMcan.Node.canStatus = eNS_NMT_RUN;
 	mNodes[mMcan.Node.nodeId].canStatus = mMcan.Node.canStatus;
 }
@@ -237,11 +274,18 @@ uint32_t MCAN_GetHalErrorCode(void)
 }
 
 // weak default; LOG.c overrides it
-__attribute__((weak)) void MCAN_TxStallCallback(e_McanTxEvent event, const s_McanDiag* diag)
+__attribute__((weak)) void MCAN_ReportError(const uint8_t payload[6], uint8_t beforeReset)
 {
-	(void)event;
-	(void)diag;
+	(void)payload;
+	(void)beforeReset;
 }
+
+#ifdef MCAN_UNIT_TEST
+CAN_handle* MCAN_TestGetHandle(void)
+{
+	return &mMcan;
+}
+#endif
 
 // Gets a message from receive buffer to be processed by application
 // returns 1 if message is available, otherwise return 0
@@ -339,6 +383,7 @@ static void PollTxCompletion(uint32_t now)
 			{
 				mDiag.txOkCnt++;
 				mDiag.lastProgressTick = now;
+				mDiag.lastTxOkTick = now;
 				mDiag.stallFailCnt = 0;
 			}
 			else if (tsr & terr[i])
@@ -361,48 +406,174 @@ static void PollTxCompletion(uint32_t now)
 	}
 }
 
-// 10 ms: error counter statistics + stall detection
-static void SuperviseTx(uint32_t now)
+static uint8_t Sat8(uint32_t v)
 {
-	uint32_t esr = READ_REG(mMcan.CanHw->Instance->ESR);
-	uint32_t tsr = READ_REG(mMcan.CanHw->Instance->TSR);
+	return (uint8_t)(v > 255u ? 255u : v);
+}
+
+// Compares the mMcan pointers with their shadow copies; restores and reports a corrupted pointer.
+static void CheckPointers(void)
+{
+	void** ptr[4] = {(void**)&mMcan.TxBuf, (void**)&mMcan.Rx0Buf, (void**)&mMcan.Rx1Buf, (void**)&mMcan.CanHw};
+	uint8_t payload[6];
+	uint8_t i;
+
+	for (i = 0; i < 4; i++)
+	{
+		uintptr_t cur = (uintptr_t)*ptr[i];
+		if (cur != mShadow[i].val)
+		{
+			payload[0] = MCAN_ERR_PTR_REPAIR;
+			payload[1] = (uint8_t)(1u << i);
+			memcpy(&payload[2], &cur, 4);
+			if (mShadow[i].inv == (uintptr_t)~mShadow[i].val)
+			{
+				uint32_t primask = __get_PRIMASK();
+				__disable_irq();
+				*ptr[i] = (void*)mShadow[i].val;   // restore
+				__set_PRIMASK(primask);
+				mDiag.ptrRepairCnt++;
+			}
+			else
+			{
+				payload[1] |= 0x80;                // shadow corrupted too: cannot repair; the TX stall path resets
+				mShadow[i].val = cur;              // report this only once
+				mShadow[i].inv = ~cur;
+			}
+			MCAN_ReportError(payload, 0);
+		}
+	}
+}
+
+// 10 ms: TEC/REC monitor with rate-limited reports
+static void MonitorErrors(uint32_t now, uint32_t esr)
+{
 	uint8_t tec = (uint8_t)((esr & CAN_ESR_TEC) >> CAN_ESR_TEC_Pos);
 	uint8_t rec = (uint8_t)((esr & CAN_ESR_REC) >> CAN_ESR_REC_Pos);
-	uint8_t boff = (esr & CAN_ESR_BOFF) ? 1 : 0;
-	uint8_t epv = (esr & CAN_ESR_EPVF) ? 1 : 0;
+	uint8_t level = (uint8_t)(esr & (CAN_ESR_EWGF | CAN_ESR_EPVF | CAN_ESR_BOFF));   // bit0 EWG, bit1 EPV, bit2 BOF
+	uint8_t events;
+	uint8_t types;
+	uint8_t payload[6];
+	uint32_t herr;
+	uint32_t primask = __get_PRIMASK();
+
+	// HAL records EWG/EPV/BOF and the LEC error types in ErrorCode from the RX interrupts (also short bus-offs that
+	// a 10 ms sample misses). Consume the bits we evaluate.
+	__disable_irq();
+	herr = mMcan.CanHw->ErrorCode;
+	mMcan.CanHw->ErrorCode &= ~0x1FFu;   // HAL_CAN_ERROR_EWG .. HAL_CAN_ERROR_CRC
+	__set_PRIMASK(primask);
+	herr &= 0x1FFu;
+	mDiag.halErrSeen |= (uint16_t)herr;
+
+	events = (uint8_t)((level & ~mErrLevelPrev) | (herr & 0x07u));
+	types = (uint8_t)((herr >> 3) & 0x3Fu);
+	mErrLevelPrev = level;
 
 	if (tec > mDiag.tecMax) mDiag.tecMax = tec;
 	if (rec > mDiag.recMax) mDiag.recMax = rec;
-	if (boff && !mLastBoff) mDiag.busOffCnt++;
-	if (epv && !mLastEpv) mDiag.errPassiveCnt++;
-	mLastBoff = boff;
-	mLastEpv = epv;
+	if (((level & CAN_ESR_BOFF) && !mLastBoff) || ((herr & 0x04u) && !(level & CAN_ESR_BOFF))) mDiag.busOffCnt++;
+	if ((level & CAN_ESR_EPVF) && !mLastEpv) mDiag.errPassiveCnt++;
+	mLastBoff = (level & CAN_ESR_BOFF) ? 1 : 0;
+	mLastEpv = (level & CAN_ESR_EPVF) ? 1 : 0;
 
-	if (((tsr & MCAN_TME_ALL) == MCAN_TME_ALL) && CB_IsEmpty(mMcan.TxBuf))
+	mWinFlags |= (uint8_t)(level | events);
+	mWinErrTypes |= types;
+	if (tec > mWinTecPeak) mWinTecPeak = tec;
+	if (rec > mWinRecPeak) mWinRecPeak = rec;
+
+	if (events && (!mErrLogSent || (uint32_t)(now - mLastErrLogTick) >= MCAN_ERRMON_HOLDOFF_MS))
+	{
+		payload[0] = MCAN_ERR_ERRCNT;
+		payload[1] = (uint8_t)(events | 0x80u);   // immediate
+		payload[2] = mWinTecPeak;
+		payload[3] = mWinRecPeak;
+		payload[4] = mWinErrTypes;
+		payload[5] = tec;
+		mErrLogSent = 1;
+		mLastErrLogTick = now;
+		mDiag.errLogCnt++;
+		MCAN_ReportError(payload, 0);
+	}
+
+	if ((uint32_t)(now - mWinStartTick) >= MCAN_ERRMON_WINDOW_MS)
+	{
+		if (mWinFlags || mWinTecPeak >= MCAN_ERRMON_LEVEL || mWinRecPeak >= MCAN_ERRMON_LEVEL)
+		{
+			payload[0] = MCAN_ERR_ERRCNT;
+			payload[1] = mWinFlags;                 // summary
+			payload[2] = mWinTecPeak;
+			payload[3] = mWinRecPeak;
+			payload[4] = mWinErrTypes;
+			payload[5] = tec;
+			mDiag.errLogCnt++;
+			MCAN_ReportError(payload, 0);
+		}
+		mWinStartTick = now;
+		mWinFlags = 0;
+		mWinTecPeak = tec;
+		mWinRecPeak = rec;
+		mWinErrTypes = 0;
+	}
+}
+
+// 10 ms: pointer check, error monitor, stall detection
+static void SuperviseTx(uint32_t now)
+{
+	uint32_t esr;
+	uint32_t tsr;
+	uint8_t pending;
+
+	CheckPointers();
+
+	esr = READ_REG(mMcan.CanHw->Instance->ESR);
+	tsr = READ_REG(mMcan.CanHw->Instance->TSR);
+	MonitorErrors(now, esr);
+
+	pending = (((tsr & MCAN_TME_ALL) != MCAN_TME_ALL) || !CB_IsEmpty(mMcan.TxBuf)) ? 1 : 0;
+	if (!pending)
 	{
 		mDiag.lastProgressTick = now;   // nothing to send is not a stall
-		return;
 	}
-	if ((uint32_t)(now - mDiag.lastProgressTick) >= MCAN_TX_STALL_MS)
+	if (mDiag.stallRecoveryCnt != 0 && (uint32_t)(now - mDiag.lastRecoveryTick) < MCAN_TX_STALL_MS)
 	{
-		RecoverTx(now);
+		return;                          // give the last recovery a full window
+	}
+	if (pending && (uint32_t)(now - mDiag.lastProgressTick) >= MCAN_TX_STALL_MS)
+	{
+		RecoverTx(now, 1);
+	}
+	else if ((uint32_t)(now - mDiag.lastTxOkTick) >= MCAN_TX_DEAD_MS)
+	{
+		RecoverTx(now, 2);               // nothing transmitted at all although the heartbeat runs every 5 s
 	}
 }
 
 // Abort the pending mailboxes, then enter and leave initialization mode. This is the bus-off recovery the reference
-// manual prescribes for ABOM = 0, and it also clears any other stuck transmit state. Filters, IER and BTR are kept;
-// HAL state stays READY (HAL_CAN_Stop/Start are not used because HAL_CAN_Start() sets HAL_CAN_STATE_ERROR when it
-// cannot leave init mode within 10 ms, e.g. on a busy or shorted bus, and AddTxMessage would then fail for good).
-static void RecoverTx(uint32_t now)
+// manual prescribes for ABOM = 0, and it also clears any other stuck transmit state. Filters, IER and BTR are kept.
+// HAL_CAN_Stop/Start are not used because HAL_CAN_Start() sets HAL_CAN_STATE_ERROR when it cannot leave init mode
+// within 10 ms (busy or shorted bus), and AddTxMessage would then fail for good. A HAL state outside
+// READY/LISTENING (only possible by memory corruption) is put back to LISTENING.
+static void RecoverTx(uint32_t now, uint8_t reason)
 {
 	CAN_TypeDef* can = mMcan.CanHw->Instance;
 	uint32_t loops = 0;
+	uint32_t tsr;
+	uint8_t halState = (uint8_t)mMcan.CanHw->State;
+	uint8_t flags;
+	uint8_t payload[6];
+	uint8_t reset = 0;
 
 	mDiag.esrAtStall = READ_REG(can->ESR);
-	mDiag.tsrAtStall = READ_REG(can->TSR);
+	mDiag.tsrAtStall = tsr = READ_REG(can->TSR);
 	mDiag.stallRecoveryCnt++;
 	mDiag.stallFailCnt++;
-	mDiag.lastProgressTick = now;   // next attempt one full MCAN_TX_STALL_MS later
+	mDiag.lastRecoveryTick = now;
+	mDiag.lastProgressTick = now;
+
+	flags = (uint8_t)((tsr >> 26) & 0x07u);                 // TME0..2
+	if (mMcan.TxBuf == NULL) flags |= 0x08u;
+	if (!CB_IsEmpty(mMcan.TxBuf)) flags |= 0x10u;
 
 	WRITE_REG(can->TSR, CAN_TSR_ABRQ0 | CAN_TSR_ABRQ1 | CAN_TSR_ABRQ2);
 
@@ -416,15 +587,40 @@ static void RecoverTx(uint32_t now)
 #endif
 	CLEAR_BIT(can->MCR, CAN_MCR_INRQ);   // hardware leaves init mode after 11 recessive bits; no need to wait
 
+	if (mMcan.CanHw->State != HAL_CAN_STATE_READY && mMcan.CanHw->State != HAL_CAN_STATE_LISTENING)
+	{
+		mMcan.CanHw->State = HAL_CAN_STATE_LISTENING;
+		mDiag.halStateRepairCnt++;
+		flags |= 0x20u;
+	}
+
 #if (MCAN_TX_STALL_RESET_AFTER > 0)
 	if (mDiag.stallFailCnt > MCAN_TX_STALL_RESET_AFTER)
 	{
-		MCAN_TxStallCallback(eMTE_RESET, &mDiag);
-		NVIC_SystemReset();
-		return;
+		reset = 1;
 	}
 #endif
-	MCAN_TxStallCallback(eMTE_RECOVERY, &mDiag);
+
+	payload[0] = MCAN_ERR_TX_STALL;
+	payload[1] = reset ? (uint8_t)eMTE_RESET : (uint8_t)eMTE_RECOVERY;
+	payload[2] = (uint8_t)(mDiag.esrAtStall >> 16);   // TEC
+	payload[3] = (uint8_t)(mDiag.esrAtStall >> 24);   // REC
+	payload[4] = (uint8_t)(mDiag.esrAtStall & 0x7Fu);
+	payload[5] = Sat8(mDiag.stallRecoveryCnt);
+	MCAN_ReportError(payload, 0);
+
+	payload[0] = MCAN_ERR_TX_STALL_SW;
+	payload[1] = halState;
+	payload[2] = Sat8(CB_NumOfItems(mMcan.TxBuf));
+	payload[3] = flags;
+	payload[4] = Sat8(mDiag.txHwBusyCnt);
+	payload[5] = reason;
+	MCAN_ReportError(payload, reset);
+
+	if (reset)
+	{
+		NVIC_SystemReset();
+	}
 }
 
 

@@ -19,8 +19,7 @@
 // value written to LOG_BCKP_FUNC_ID before a self-reset; appears as STARTUP byte 3 (fault handlers use 10..13)
 #define LOG_FUNC_ID_CAN_TX_STALL  30
 
-// eleError payload byte 0 (error code)
-#define LOG_ERR_CAN_TX_STALL      0x01  // bytes 1..5: event (1 recovery, 2 reset), TEC, REC, ESR[6:0] (LEC<<4|BOFF<<2|EPVF<<1|EWGF), recoveries (sat. 255)
+// eleError payload codes 0x01..0x04 are the CAN reports from MCAN (MCAN_ERR_* in MCAN.h)
 
 
 
