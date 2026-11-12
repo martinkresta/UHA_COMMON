@@ -31,6 +31,23 @@
 #define MAX_NUM_OF_NODES	8
 #define CO_DEFAULT_HB_TO	10000  // 10sec
 
+/* ---- TX supervision (see VarDefs/can_tx_stall_2026-11-12.md) ----
+ * A node sends its heartbeat every CO_DEFAULT_HB_TO/2 = 5 s, so a healthy node has something to send at least
+ * every 5 s and completes it within milliseconds. If frames are pending (TX ring or HW mailboxes) and no frame has
+ * completed for MCAN_TX_STALL_MS, the CAN peripheral is recovered (abort mailboxes, enter + leave init mode). */
+#ifndef MCAN_TX_STALL_MS
+#define MCAN_TX_STALL_MS          3000u
+#endif
+/* Consecutive recoveries without a successful transmission in between before NVIC_SystemReset(). 0 = never reset.
+ * Default off: a node alone on the bus (no ACK) would otherwise reset itself, and a reset toggles the relays. */
+#ifndef MCAN_TX_STALL_RESET_AFTER
+#define MCAN_TX_STALL_RESET_AFTER 0u
+#endif
+/* 1 = MCAN_Init() sets ABOM (automatic bus-off recovery) regardless of the CubeMX setting. */
+#ifndef MCAN_FORCE_ABOM
+#define MCAN_FORCE_ABOM           1
+#endif
+
 
 #define ID_RANGE	0x0F    // maximal nodeID
 
@@ -112,6 +129,35 @@ typedef struct
 }CAN_handle;
 
 
+typedef enum
+{
+	eMTE_RECOVERY = 1,   // TX stall detected, CAN peripheral recovered
+	eMTE_RESET    = 2    // TX stall persists, NVIC_SystemReset() follows right after the callback
+}e_McanTxEvent;
+
+// cheap CAN diagnostics, read with MCAN_GetDiag() (SysInfo, UHAMON, debugger)
+typedef struct
+{
+	uint32_t txOkCnt;          // frames completed with TXOK
+	uint32_t txErrCnt;         // mailbox completions with TERR (transmission error)
+	uint32_t txArbLostCnt;     // mailbox completions with ALST (arbitration lost; NART=0 retries anyway)
+	uint32_t txAbortCnt;       // mailbox completions without TXOK/TERR/ALST (aborted by recovery)
+	uint32_t txHwBusyCnt;      // MCAN_Transmit() calls with a frame waiting but no free mailbox
+	uint32_t txRingDropCnt;    // frames lost because the TX ring was full (oldest overwritten)
+	uint32_t lastProgressTick; // HAL_GetTick() of last TXOK, or of last time nothing was pending
+	uint32_t stallRecoveryCnt; // total recoveries since start
+	uint32_t esrAtStall;       // CAN ESR / TSR captured at the last recovery
+	uint32_t tsrAtStall;
+	uint32_t busOffCnt;        // BOFF rising edges seen by the 10 ms poll (short bus-offs with ABOM can be missed)
+	uint32_t errPassiveCnt;    // EPVF rising edges seen by the 10 ms poll
+	uint16_t stallFailCnt;     // recoveries since the last successful transmission
+	uint16_t txRingLevel;      // current TX ring fill
+	uint16_t txRingMax;        // TX ring high-water mark
+	uint8_t  tecMax;           // highest transmit error counter seen
+	uint8_t  recMax;           // highest receive error counter seen
+}s_McanDiag;
+
+
 void MCAN_Init(CAN_HandleTypeDef	* can, uint8_t id);
 
 void MCAN_Update_10ms(void);
@@ -127,6 +173,18 @@ uint8_t MCAN_GetRxMessage(s_CanRxMsg* msg);
 uint8_t MCAN_SendFrame(uint16_t cobid, uint8_t* data, uint8_t dlc);
 
 s_CanNode* MCAN_GetNodesPt(void);
+
+const s_McanDiag* MCAN_GetDiag(void);   // fills txRingLevel on each call
+
+uint32_t MCAN_GetEsr(void);             // live CAN ESR (TEC/REC/LEC/BOFF/EPVF/EWGF)
+
+uint32_t MCAN_GetTsr(void);             // live CAN TSR (mailbox state)
+
+uint32_t MCAN_GetHalErrorCode(void);    // hcan->ErrorCode (HAL_CAN_ERROR_* bits, sticky)
+
+// Called from MCAN_Update_10ms() (main context) on a TX stall. Weak empty default in MCAN.c;
+// LOG.c provides the real one (0x620 error event, RTC backup id before a reset).
+void MCAN_TxStallCallback(e_McanTxEvent event, const s_McanDiag* diag);
 
 
 // Required interface ! - This fcns have to be defined in application

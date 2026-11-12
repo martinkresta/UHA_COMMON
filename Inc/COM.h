@@ -51,7 +51,18 @@ typedef enum
 {
   esit_ASW_version = 0,
   esit_UpTime,
-  esit_HWID
+  esit_HWID,
+  // CAN diagnostics, answered by COM_SendSysInfoCommon() (UHA_COMMON), value = uint32 little endian
+  esit_CanEsr = 0x10,      // live ESR: REC<<24 | TEC<<16 | LEC<<4 | BOFF<<2 | EPVF<<1 | EWGF
+  esit_CanTsr,             // live TSR: TME2..0 at bits 28..26
+  esit_CanTxRing,          // txRingMax<<16 | txRingLevel
+  esit_CanTxDrops,         // txRingDropCnt
+  esit_CanTxOk,            // txOkCnt
+  esit_CanTxStall,         // stallFailCnt<<16 | stallRecoveryCnt (16 bit)
+  esit_CanTxIdleMs,        // ms since last TXOK (or since nothing was pending)
+  esit_CanErrStat,         // busOffCnt<<24 | errPassiveCnt<<16 (8 bit sat.) | recMax<<8 | tecMax
+  esit_CanEsrAtStall,      // ESR captured at the last recovery
+  esit_CanHalError         // hcan->ErrorCode (sticky HAL error bits)
 }eSysInfoType;
 
 typedef enum
@@ -80,6 +91,9 @@ void COM_SendACRemoteRequest(uint16_t type, uint16_t request, uint16_t keepOnTim
 void COM_SendRecuRemoteRequest(eRecuRemoteReqMode mode, uint16_t duration);
 void COM_SendLogMsg(eLogEvent event, uint8_t* logvalue);  // logvalue may be array of bytes or  32bit number
 void COM_SendSysInfo(eSysInfoType type, uint32_t value);
+// answers the SysInfo types handled in UHA_COMMON (CAN diagnostics); returns 1 if handled, 0 otherwise.
+// Call it from the default branch of the node's CMD_SYSINFO_REQ switch.
+uint8_t COM_SendSysInfoCommon(uint8_t type);
 
 // function  for sending UHAMON messages
 void COM_SendUhamonMessage(uint8_t* uhamonMsg);

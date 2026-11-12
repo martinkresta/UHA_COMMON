@@ -238,6 +238,34 @@ void COM_SendSysInfo(eSysInfoType type, uint32_t value)
   COM_SendMessage(CMD_SYSINFO_RSP, data, 8);
 }
 
+static uint32_t Sat8(uint32_t v)
+{
+  return v > 255u ? 255u : v;
+}
+
+uint8_t COM_SendSysInfoCommon(uint8_t type)
+{
+  const s_McanDiag* d = MCAN_GetDiag();
+  uint32_t v;
+
+  switch (type)
+  {
+    case esit_CanEsr:        v = MCAN_GetEsr(); break;
+    case esit_CanTsr:        v = MCAN_GetTsr(); break;
+    case esit_CanTxRing:     v = ((uint32_t)d->txRingMax << 16) | d->txRingLevel; break;
+    case esit_CanTxDrops:    v = d->txRingDropCnt; break;
+    case esit_CanTxOk:       v = d->txOkCnt; break;
+    case esit_CanTxStall:    v = ((uint32_t)d->stallFailCnt << 16) | (d->stallRecoveryCnt & 0xFFFFu); break;
+    case esit_CanTxIdleMs:   v = HAL_GetTick() - d->lastProgressTick; break;
+    case esit_CanErrStat:    v = (Sat8(d->busOffCnt) << 24) | (Sat8(d->errPassiveCnt) << 16) | ((uint32_t)d->recMax << 8) | d->tecMax; break;
+    case esit_CanEsrAtStall: v = d->esrAtStall; break;
+    case esit_CanHalError:   v = MCAN_GetHalErrorCode(); break;
+    default:                 return 0;
+  }
+  COM_SendSysInfo((eSysInfoType)type, v);
+  return 1;
+}
+
 
 
 
