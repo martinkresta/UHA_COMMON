@@ -89,7 +89,8 @@ COM_GetRxMessage(&msg)
 | COBID | Message |
 |-------|---------|
 | 0x100 | Button state |
-| 0x110 | Variable value (read/write) |
+| 0x110 | Old variable value: no longer sent (VARS2 step 6b); RX case still in some APP.c until part B |
+| 0x180 | VARS2 variable frame (`0x180 + node`), see `VarDefs/VARS2_spec.md` |
 | 0x120 | Gesture command |
 | 0x130 | AC remote request |
 | 0x140 | RECU remote request |

@@ -1,8 +1,8 @@
 /*
  * VARS2.h
  *
- * VARS2 shared variable protocol - migration step 1 (dual old+new TX, RX into
- * Vars2). See UHA_COMMON/VarDefs/VARS2_spec.md.
+ * VARS2 shared variable protocol: TX of own variables (0x180+node, value from
+ * Vars[]), RX into Vars2. See UHA_COMMON/VarDefs/VARS2_spec.md.
  *
  * Hand-written, NOT generated. Uses the generated tables in uha_vars_gen.h.
  */
