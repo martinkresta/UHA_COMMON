@@ -1,7 +1,7 @@
 /*
  * test_tunnel.c - PC unit test of the ELECON VARS2 tunnel (step 2):
  * ASW_ELECON/Core/Src/RPISERP.c (TX FIFO, chained TX) and SCOM.c (hook,
- * local publishing, old 0x221 traffic) with a simulated UART/DMA.
+ * local publishing incl. NETWORK_STATUS, no old 0x221 traffic) with a simulated UART/DMA.
  * RPISERP.c and SCOM.c are #included so their static functions are covered.
  * Run via tests/test_tunnel.py.
  */
@@ -145,17 +145,17 @@ static void test_own_tx_tunnel(void)
 	CHECK(p.ok && p.id == 0x184 && p.data[0] == 11 && p.data[1] == 0 && p.data[6] == 1);
 }
 
-static void test_local_and_old_traffic(void)
+static void test_local_and_no_old_traffic(void)
 {
 	int t, i;
-	int cnt184 = 0, cnt221 = 0, other = 0, bad = 0;
+	int cnt184 = 0, cnt221 = 0, other = 0, bad = 0, nsBad = 0;
 	static int perId[VAR_MAX_ID + 1];
-	static int per221[NUM_OF_VARIABLES];
 
 	VARS2_Init(NODEID_ELECON);
 	SetupLink();
 	for (i = 0; i < NUM_OF_VARIABLES; i++) gRaw[i] = (int16_t)(i + 1);
-	memset(perId, 0, sizeof(perId)); memset(per221, 0, sizeof(per221));
+	gRaw[VAR_NETWORK_STATUS] = 0;   /* set by SCOM every 5 s from COM_GetNetworkStatus() (mock: 0x1F) */
+	memset(perId, 0, sizeof(perId));
 	gCanSent = 0; gTick = 1000000;
 	for (t = 0; t < 6000; t++)   /* 60 s */
 	{
@@ -172,14 +172,13 @@ static void test_local_and_old_traffic(void)
 			uint16_t id = (uint16_t)(p.data[0] | (p.data[1] << 8));
 			cnt184++;
 			if (id <= VAR_MAX_ID) perId[id]++;
+			if (id == VID_NETWORK_STATUS)
+			{
+				uint32_t v = (uint32_t)p.data[2] | ((uint32_t)p.data[3] << 8) | ((uint32_t)p.data[4] << 16) | ((uint32_t)p.data[5] << 24);
+				if (!(v == 0x1F && p.data[6] == 1) && !(perId[id] == 1 && v == 0)) nsBad++;   /* first one may precede the first 5 s set */
+			}
 		}
-		else if (p.id == 0x221)
-		{
-			uint16_t id = (uint16_t)((p.data[0] << 8) | p.data[1]);
-			int16_t v = (int16_t)((p.data[2] << 8) | p.data[3]);
-			cnt221++;
-			if (id < NUM_OF_VARIABLES) { per221[id]++; CHECK(v == gRaw[id] || id == VAR_NETWORK_STATUS); }
-		}
+		else if (p.id == 0x221) cnt221++;
 		else other++;
 	}
 	printf("60 s: %d frames (0x184: %d, 0x221: %d, other %d, corrupt %d), overflow %u\n",
@@ -189,12 +188,11 @@ static void test_local_and_old_traffic(void)
 	CHECK(gCanSent == 0);
 	CHECK(gRspTxOverflow == 0);
 	CHECK(cnt184 > 2300 && cnt184 < 2700);   /* 108 local vars over 1..5 s periods, ~42/s */
-	CHECK(cnt221 > 3000);        /* scan list still running, 1 per 10 ms max */
-	CHECK(cnt221 <= 6000);
-	/* old scan list unchanged: VAR_BAT_SOC every 1000 ms; the long list (more than 100/s due) is
-	 * limited to 1 frame per 10 ms by the old code, so late entries are only sent less often */
-	CHECK(per221[VAR_BAT_SOC] >= 58 && per221[VAR_BAT_SOC] <= 61);
-	CHECK(per221[VAR_BMS1_CELL1_MV] >= 1 && per221[VAR_BMS1_CELL1_MV] <= 21);
+	CHECK(cnt221 == 0);          /* old PC scan list removed (VARS2 step 6b part B) */
+	/* NETWORK_STATUS: every 5 s on 0x184 only (not on CAN), uint32 0x1F, valid */
+	printf("NETWORK_STATUS: %d frames on 0x184\n", perId[VID_NETWORK_STATUS]);
+	CHECK(perId[VID_NETWORK_STATUS] >= 11 && perId[VID_NETWORK_STATUS] <= 13);
+	CHECK(nsBad == 0);
 	for (i = 0; i < VARS_COUNT; i++)
 	{
 		const sVarMeta* m = &VarMeta[i];
@@ -255,7 +253,7 @@ int main(void)
 	/* the hook is installed by SCOM_Init() */
 	test_rx_tunnel_and_reject();
 	test_own_tx_tunnel();
-	test_local_and_old_traffic();
+	test_local_and_no_old_traffic();
 	test_fifo_overflow_and_order();
 	test_throughput();
 	printf("%d checks, %d failed\n", checks, fails);
