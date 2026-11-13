@@ -406,6 +406,20 @@ static void test_local_publishing(void)
 	CHECK(gLocLast[VAR_SOLAR_POWER_W][6] == 0x00u);   /* invalid -> flag clear */
 	CHECK(gLocCount[10] == 0);   /* id 10 = BatSoc is on CAN */
 
+	/* NETWORK_STATUS (id 1, uint32, 5 s, not on CAN): tunnel only, every 5 s, bitmask as uint32 */
+	CHECK(gLocCount[VAR_NETWORK_STATUS] >= 11 && gLocCount[VAR_NETWORK_STATUS] <= 13);
+	{
+		uint32_t u;
+		SetVar(VAR_NETWORK_STATUS, 0xFE, 1);   /* nodes 1..7 in NMT RUN (COM_GetNetworkStatus) */
+		memset(gLocLast[VAR_NETWORK_STATUS], 0, 8);
+		for (t = 60000; t < 66000; t += 10) { SetTick(500000 + t); VARS2_UpdateLocal_10ms(LocalCb); }
+		memcpy(&u, &gLocLast[VAR_NETWORK_STATUS][2], 4);
+		CHECK(u == 0xFEu);
+		CHECK(gLocLast[VAR_NETWORK_STATUS][6] == 0x01u);
+		CHECK(Vars2.System.NetworkStatus == 0xFEu);
+		CHECK(gSendCount == 0);   /* still nothing on CAN */
+	}
+
 	/* a node other than ELECON publishes nothing local */
 	VARS2_Init(NODEID_TECHM);
 	memset(gLocCount, 0, sizeof(gLocCount));
