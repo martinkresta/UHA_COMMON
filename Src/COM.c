@@ -282,21 +282,7 @@ void COM_SendUhamonMessage(uint8_t* uhamonMsg)
 /*Private methods*/
 static void SendVariable(uint16_t id)
 {
-	uint16_t invalid = 0;
-	uint16_t validflag = 0;
-	int16_t tmp = VAR_GetVariableLegacy(id, &invalid);   // transmission always publishes Vars[]
-	validflag = (invalid == INVALID_FLAG ? 0 : 1);
-	uint8_t data[8];
-	data[0] = id >> 8;
-	data[1] = id  & 0xFF;
-	data[2] = tmp >> 8;
-	data[3] = tmp & 0xFF;
-	data[4] = validflag >> 8;
-	data[5] = validflag & 0xFF;
-	data[6] = 0;
-	data[7] = 0;
-	MCAN_SendFrame(CMD_VAR_VALUE + mNodeId, data, 8);
-	VARS2_SendLegacy(id);
+	VARS2_SendLegacy(id);   // VARS2 frame 0x180+node (value + validity from Vars[])
 }
 
 

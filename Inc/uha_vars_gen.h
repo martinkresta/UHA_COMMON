@@ -9,13 +9,14 @@
 #include <stdint.h>
 #include "VARS2_types.h"
 
-#define VARS_COUNT         257
+#define VARS_COUNT         258
 #define VAR_MAX_ID         381
 #define VARS_ON_CAN_COUNT  145
 
 /* ---- variable ids ---- */
 typedef enum
 {
+  VID_NETWORK_STATUS           =   1,  /* system */
   VID_SOLAR_POWER_W            =   8,  /* global_energy, W */
   VID_SOLAR_ENERGY_TODAY_WH    =   9,  /* global_energy, Wh */
   VID_BAT_SOC                  =  10,  /* global_energy, % */
@@ -295,6 +296,11 @@ typedef enum
 /* ---- group structs (4-byte fields only) ---- */
 typedef struct
 {
+  uint32_t NetworkStatus; /* id 1, not on CAN */
+} sVarsSystem;
+
+typedef struct
+{
   float SolarPower_W;        /* id 8, W, not on CAN */
   float SolarEnergyToday_Wh; /* id 9, Wh, not on CAN */
   float BatSoc;              /* id 10, % */
@@ -526,6 +532,7 @@ typedef struct
 
 typedef struct
 {
+  sVarsSystem       System;
   sVarsGlobalEnergy GlobalEnergy;
   sVarsBms1         Bms1;
   sVarsBms2         Bms2;

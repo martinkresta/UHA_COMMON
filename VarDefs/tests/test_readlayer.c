@@ -102,10 +102,10 @@ static void test_fallbacks(void)
 	VARS2_ProcessFrame(gFrame);
 	CHECK(VAR_GetVariable(m->Id, &inv) == SENTINEL && inv == 0);
 
-	/* unknown id (VAR_NETWORK_STATUS has no VARS2 row) and out-of-range id */
+	/* unknown id (id 2 has no VARS2 row) and out-of-range id */
 	VARS2_Init(NODEID_TECHM);
-	VAR_SetVariable(VAR_NETWORK_STATUS, 31, 1);
-	CHECK(VAR_GetVariable(VAR_NETWORK_STATUS, &inv) == 31 && inv == 0);
+	VAR_SetVariable(2, 31, 1);
+	CHECK(VAR_GetVariable(2, &inv) == 31 && inv == 0);
 	CHECK(VAR_GetVariable((uint16_t)(VAR_MAX_ID + 1), &inv) == 0 && inv == INVALID_FLAG);
 
 	/* nothing received yet: Vars[] incl. its own (invalid) flag, exactly as today */

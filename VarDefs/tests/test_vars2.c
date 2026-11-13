@@ -99,10 +99,10 @@ static void test_rx_unknown_id_ignored(void)
 	SetTick(2000);
 	memcpy(&before, &Vars2, sizeof(sVars));
 
-	/* id 0 and id 1 (VAR_NETWORK_STATUS) both have no VARS2 definition */
+	/* id 0 and id 2 (unused) both have no VARS2 definition */
 	BuildRxFrame(frame, 0, &garbage, 1);
 	VARS2_ProcessFrame(frame);
-	BuildRxFrame(frame, VAR_NETWORK_STATUS, &garbage, 1);
+	BuildRxFrame(frame, 2, &garbage, 1);
 	VARS2_ProcessFrame(frame);
 	/* id just above VAR_MAX_ID must also be rejected without touching VarIdToIndex out of bounds */
 	BuildRxFrame(frame, VAR_MAX_ID + 1, &garbage, 1);
@@ -235,9 +235,9 @@ static void test_sendlegacy_enum(void)
 static void test_sendlegacy_unmapped_noop(void)
 {
 	VARS2_Init(NODEID_ELECON);
-	SetVar(VAR_NETWORK_STATUS, 7, 1);   /* valid old VARS.h id, no VARS2 definition */
+	SetVar(2, 7, 1);   /* valid Vars[] index, no VARS2 definition */
 	gSendCount = 0;
-	VARS2_SendLegacy(VAR_NETWORK_STATUS);
+	VARS2_SendLegacy(2);
 	CHECK(gSendCount == 0);
 
 	VARS2_SendLegacy((uint16_t)(VAR_MAX_ID + 1));   /* out of range id altogether */
@@ -405,6 +405,20 @@ static void test_local_publishing(void)
 	}
 	CHECK(gLocLast[VAR_SOLAR_POWER_W][6] == 0x00u);   /* invalid -> flag clear */
 	CHECK(gLocCount[10] == 0);   /* id 10 = BatSoc is on CAN */
+
+	/* NETWORK_STATUS (id 1, uint32, 5 s, not on CAN): tunnel only, every 5 s, bitmask as uint32 */
+	CHECK(gLocCount[VAR_NETWORK_STATUS] >= 11 && gLocCount[VAR_NETWORK_STATUS] <= 13);
+	{
+		uint32_t u;
+		SetVar(VAR_NETWORK_STATUS, 0xFE, 1);   /* nodes 1..7 in NMT RUN (COM_GetNetworkStatus) */
+		memset(gLocLast[VAR_NETWORK_STATUS], 0, 8);
+		for (t = 60000; t < 66000; t += 10) { SetTick(500000 + t); VARS2_UpdateLocal_10ms(LocalCb); }
+		memcpy(&u, &gLocLast[VAR_NETWORK_STATUS][2], 4);
+		CHECK(u == 0xFEu);
+		CHECK(gLocLast[VAR_NETWORK_STATUS][6] == 0x01u);
+		CHECK(Vars2.System.NetworkStatus == 0xFEu);
+		CHECK(gSendCount == 0);   /* still nothing on CAN */
+	}
 
 	/* a node other than ELECON publishes nothing local */
 	VARS2_Init(NODEID_TECHM);

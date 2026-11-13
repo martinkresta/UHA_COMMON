@@ -22,7 +22,7 @@ protocol, the YAML schema, the generated code and the migration plan.
 
 | Item | Value |
 |------|-------|
-| COB-ID | `0x180 + nodeId` (sender). Old format `0x110 + nodeId` coexists during migration |
+| COB-ID | `0x180 + nodeId` (sender). Old format `0x110 + nodeId` is no longer sent since step 6b |
 | DLC | 8 |
 
 ```
@@ -140,7 +140,7 @@ uint8_t VARS2_IsValid(eVarId id);                   /* RX flag && not timed out 
 
 - TX takes the value **and validity** from the old `Vars[]`
   (`legacyId`), converts `int16 / legacy_scale` → physical value, sends
-  the new frame. Old frame `0x110` is still sent as today.
+  the new frame. (Until step 6b the old frame `0x110` was sent as well; removed in 6b.)
 - RX of new frames writes into `Vars2` (+ state); nothing in the
   application reads it yet.
 - Old `VARS.c` / `VAR_GetVariable()` and the old protocol stay unchanged.
@@ -173,7 +173,7 @@ uint8_t VARS2_IsValid(eVarId id);                   /* RX flag && not timed out 
 | 4 | Flash ELECON + RPi, verify data | |
 | 5 | PC tool on new format | old format not supported in PC tool |
 | 6a | Nodes switch reading to new format, one by one | any order (all send both) |
-| 6b | Nodes stop sending old format | after all read new |
+| 6b | Old format removed: `0x110` TX in `COM.c` (part A), `0x110` RX per node and ELECON `0x221` (part B) | after all read new; task `UHA_COMMON/tasks/vars2_stop_legacy_tx.md` |
 
 Dependency map: `vars_dependency_map.md` (only mutual dependency:
 ELECON ↔ ELECON_D).

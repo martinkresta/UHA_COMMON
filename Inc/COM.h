@@ -21,7 +21,7 @@
 
 
 #define  CMD_BUTTON_STATE     0x100
-#define  CMD_VAR_VALUE		    0x110
+#define  CMD_VAR_VALUE		    0x110   // old variable format: no longer sent; delete once no APP.c has its RX case (VARS2 step 6b part B)
 #define  CMD_GESTURE			    0x120
 #define  CMD_AC_REMOTE_REQ    0x130
 #define  CMD_RECU_REMOTE_REQ  0x140
