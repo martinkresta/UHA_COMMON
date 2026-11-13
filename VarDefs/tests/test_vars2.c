@@ -99,10 +99,10 @@ static void test_rx_unknown_id_ignored(void)
 	SetTick(2000);
 	memcpy(&before, &Vars2, sizeof(sVars));
 
-	/* id 0 and id 1 (VAR_NETWORK_STATUS) both have no VARS2 definition */
+	/* id 0 and id 2 (unused) both have no VARS2 definition */
 	BuildRxFrame(frame, 0, &garbage, 1);
 	VARS2_ProcessFrame(frame);
-	BuildRxFrame(frame, VAR_NETWORK_STATUS, &garbage, 1);
+	BuildRxFrame(frame, 2, &garbage, 1);
 	VARS2_ProcessFrame(frame);
 	/* id just above VAR_MAX_ID must also be rejected without touching VarIdToIndex out of bounds */
 	BuildRxFrame(frame, VAR_MAX_ID + 1, &garbage, 1);
@@ -235,9 +235,9 @@ static void test_sendlegacy_enum(void)
 static void test_sendlegacy_unmapped_noop(void)
 {
 	VARS2_Init(NODEID_ELECON);
-	SetVar(VAR_NETWORK_STATUS, 7, 1);   /* valid old VARS.h id, no VARS2 definition */
+	SetVar(2, 7, 1);   /* valid Vars[] index, no VARS2 definition */
 	gSendCount = 0;
-	VARS2_SendLegacy(VAR_NETWORK_STATUS);
+	VARS2_SendLegacy(2);
 	CHECK(gSendCount == 0);
 
 	VARS2_SendLegacy((uint16_t)(VAR_MAX_ID + 1));   /* out of range id altogether */

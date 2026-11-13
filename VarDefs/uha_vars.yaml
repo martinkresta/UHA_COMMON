@@ -37,6 +37,18 @@ enums:
 groups:
 
 
+  system:   # Network / system state (ELECON)
+    producer: ELECON
+    vars:
+      - id: 1
+        name: NETWORK_STATUS
+        legacy: VAR_NETWORK_STATUS
+        type: uint32   # bit n = node n in NMT RUN (COM_GetNetworkStatus)
+        period_ms: 5000
+        on_can: false
+        receivers: [RPI]
+
+
   global_energy:   # Global energy balance – GEMON (ELECON), combines both storages
     producer: ELECON
     vars:
