@@ -36,6 +36,7 @@ scratch compile check).
 | `../Inc/VARS2.h`, `../Src/VARS2.c` | Hand-written VARS2 module (RX/TX, validity, timeout) — see `VARS2_spec.md` |
 | `tests/run_validator_tests.py` | Runs the validator on `tests/fixtures/` (`pass_*` / `fail_*`) |
 | `tests/compile_check.py` | Compiles the generated C with `gcc -std=c99 -Wall -Wextra -pedantic` on the PC (stubs in `tests/stub/`) and runs table consistency checks |
+| `tests/test_com.py` | PC test of `COM.c` (stubs in `tests/stub_com/`): only `0x180+node` is sent, a received `0x110+node` changes nothing; `--ref <old COM.c>` compares the stream timing with an older `COM.c` |
 
 ## What is generated
 
