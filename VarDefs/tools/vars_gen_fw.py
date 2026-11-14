@@ -2,10 +2,16 @@
 vars_gen_fw.py - VARS2 firmware C code generator (spec section 4).
 
 Generates from uha_vars.yaml:
-    generated/uha_vars_gen.h   eVarId, enums, group structs, sVars, externs, counts
-    generated/uha_vars_gen.c   Vars2, VarMeta[], VarIdToIndex[]
+    uha_vars_gen.h   eVarId, enums, group structs ({value, valid} fields), sVars, externs, counts
+    uha_vars_gen.c   Vars2, VarMeta[], VarIdToIndex[], struct size checks
 
-generated/VARS2_types.h is hand-written (sVarMeta, eVarType, VMF_*).
+VARS2_types.h is hand-written (sVarF32/sVarI32/sVarU32, sVarMeta, eVarType, VMF_*).
+
+Struct types: one per top-level group, or one per shared `struct`; a container
+gets one type per subgroup (sVars<Group|struct><Subgroup>) and its own type
+with the subgroups as members. Every field is an 8-byte {value, valid} item
+and every struct is a plain array of them (checked in the .c), so
+VARS2_SetGroupValid() can walk any group or container by its size.
 
 The generator does not validate (run the validator first, tools/gen_all.py),
 but refuses to emit code for values it cannot render (missing int
@@ -31,7 +37,7 @@ from vars_model import Model, VarsYamlError, load_model  # noqa: E402
 HDR_NAME = "uha_vars_gen.h"
 SRC_NAME = "uha_vars_gen.c"
 
-C_TYPE = {"float": "float", "int32": "int32_t", "uint32": "uint32_t", "bool": "uint32_t", "enum": "uint32_t"}
+C_TYPE = {"float": "sVarF32", "int32": "sVarI32", "uint32": "sVarU32", "bool": "sVarI32", "enum": "sVarI32"}
 VT = {"float": "VT_FLOAT", "int32": "VT_INT32", "uint32": "VT_UINT32", "bool": "VT_BOOL", "enum": "VT_ENUM"}
 U16_MAX = 0xFFFF
 
@@ -74,9 +80,9 @@ def _check(model: Model):
     """Fail on anything that would produce garbage C."""
     errs = []
     nodes = model.nodes
-    for g in model.groups:
+    for g in model.leaf_groups:
         if not g.vars:
-            errs.append(f"group '{g.key}': no vars (empty C struct)")
+            errs.append(f"group '{g.path}': no vars (empty C struct)")
     for v in model.values:
         where = f"{v.name} (id {v.id}, line {v.line})"
         if not (0 <= v.id < U16_MAX):
@@ -109,18 +115,59 @@ def _check(model: Model):
         raise GenError("cannot generate FW code:\n  " + "\n  ".join(errs))
 
 
-def _field_comment(d) -> str:
-    ids = f"id {d.id}..{d.id + d.n - 1}" if d.is_array else f"id {d.id}"
-    parts = [ids]
+def _field_comment(d, shared: bool) -> str:
+    """Field comment; ids and CAN flag only for types used by one group."""
+    parts = []
+    if not shared:
+        parts.append(f"id {d.id}..{d.id + d.n - 1}" if d.is_array else f"id {d.id}")
     if d.unit:
         parts.append(_ascii(d.unit))
     if d.type == "bool":
         parts.append("bool")
     elif d.type == "enum":
         parts.append(f"enum e{d.enum}")
-    if not d.on_can:
+    if not d.on_can and not shared:
         parts.append("not on CAN")
-    return "/* " + ", ".join(parts) + " */"
+    return "/* " + ", ".join(parts) + " */" if parts else ""
+
+
+def _struct_types(model: Model):
+    """[(group, 'vars' | 'container')] in declaration order, one entry per C type
+    (groups sharing a `struct` are emitted once, subgroup types before their container)."""
+    out, seen = [], set()
+    for g in model.groups:
+        for sg in g.subgroups:
+            if sg.c_struct not in seen:
+                seen.add(sg.c_struct)
+                out.append((sg, "vars"))
+        if g.c_struct not in seen:
+            seen.add(g.c_struct)
+            out.append((g, "container" if g.is_container else "vars"))
+    return out
+
+
+def _is_shared(model: Model, g) -> bool:
+    top = g.parent or g
+    return isinstance(top.struct, str) and sum(1 for t in model.groups if t.struct == top.struct) > 1
+
+
+def _group_comment(g) -> str:
+    """ /* producer[, validity per field] */ """
+    parts = []
+    if g.producer is not None and not g.is_container:
+        parts.append(str(g.producer))
+    elif g.is_container:
+        prods = sorted({str(s.producer) for s in g.subgroups})
+        parts.append(prods[0] if len(prods) == 1 else "producer per subgroup")
+    if not g.is_container and g.validity == "per_field":
+        parts.append("validity per field")
+    return "  /* " + ", ".join(parts) + " */" if parts else ""
+
+
+def _n_items(g) -> int:
+    if g.is_container:
+        return sum(_n_items(sg) for sg in g.subgroups)
+    return sum(d.n for d in g.vars)
 
 
 def gen_header(model: Model) -> str:
@@ -157,23 +204,32 @@ def gen_header(model: Model) -> str:
                 L.append(f"  {ename + '_' + str(n):<{ew}} = {k},")
             L += [f"}} e{ename};", ""]
 
-    L.append("/* ---- group structs (4-byte fields only) ---- */")
-    for g in model.groups:
+    L.append("/* ---- group structs ({value, valid} fields, see VARS2_types.h) ---- */")
+    for g, kind in _struct_types(model):
+        shared = _is_shared(model, g)
         L += ["typedef struct", "{"]
-        decls = []
-        for d in g.vars:
-            arr = f"[{d.n}]" if d.is_array else ""
-            decls.append((C_TYPE[d.type], f"{d.c_field}{arr};", _field_comment(d)))
-        tw = max(len(t) for t, _, _ in decls)
-        fw = max(len(f) for _, f, _ in decls)
-        for t, f, c in decls:
-            L.append(f"  {t:<{tw}} {f:<{fw}} {c}")
+        if kind == "container":
+            sw = max(len(sg.c_struct) for sg in g.subgroups)
+            mw = max(len(sg.c_member) for sg in g.subgroups) + 1
+            for sg in g.subgroups:
+                cmt = "" if shared else _group_comment(sg)
+                L.append((f"  {sg.c_struct:<{sw}} {sg.c_member + ';':<{mw}}" + cmt).rstrip())
+        else:
+            decls = []
+            for d in g.vars:
+                arr = f"[{d.n}]" if d.is_array else ""
+                decls.append((C_TYPE[d.type], f"{d.c_field}{arr};", _field_comment(d, shared)))
+            tw = max(len(t) for t, _, _ in decls)
+            fw = max(len(f) for _, f, _ in decls)
+            for t, f, c in decls:
+                L.append(f"  {t:<{tw}} {f:<{fw}} {c}".rstrip())
         L += [f"}} {g.c_struct};", ""]
 
     L += ["typedef struct", "{"]
     sw = max(len(g.c_struct) for g in model.groups)
+    mw = max(len(g.c_member) for g in model.groups) + 1
     for g in model.groups:
-        L.append(f"  {g.c_struct:<{sw}} {g.c_member};")
+        L.append(f"  {g.c_struct:<{sw}} {g.c_member + ';':<{mw}}" + _group_comment(g))
     L += [
         "} sVars;",
         "",
@@ -202,7 +258,7 @@ def gen_source(model: Model) -> str:
             f"NODEID_{v.producer},",
             "VMF_ON_CAN" if v.on_can else "0",
         ])
-    head = ["/* pValue", "scale", "id", "period", "tmout", "legacyId", "type", "producer", "flags */"]
+    head = ["/* pVar", "scale", "id", "period", "tmout", "legacyId", "type", "producer", "flags */"]
     widths = [max(len(r[i]) for r in rows + [head]) for i in range(len(head))]
 
     def fmt(cells):
@@ -223,6 +279,14 @@ def gen_source(model: Model) -> str:
     for r in rows:
         L.append("  { " + fmt(r) + " },")
     L += ["};", ""]
+
+    L += ["/* every struct is a plain array of 8-byte {value, valid} items (VARS2_SetGroupValid()) */"]
+    tw = max(len(g.c_struct) for g, _ in _struct_types(model))
+    for g, _ in _struct_types(model):
+        L.append(f"typedef char VARS2_SIZE_{g.c_struct}[(sizeof({g.c_struct}){' ' * (tw - len(g.c_struct))} == "
+                 f"{_n_items(g):>3}u * VAR_ITEM_SIZE) ? 1 : -1];")
+    L.append(f"typedef char VARS2_SIZE_sVars[(sizeof(sVars) == {sum(_n_items(g) for g in model.groups)}u * VAR_ITEM_SIZE) ? 1 : -1];")
+    L += [""]
 
     index = {v.id: i for i, v in enumerate(vals)}
     L += ["const uint16_t VarIdToIndex[VAR_MAX_ID + 1] =", "{"]

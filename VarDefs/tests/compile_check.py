@@ -4,7 +4,8 @@ compile_check.py - PC compile + sanity check of the generated VARS2 FW code.
 1. gcc -std=c99 -Wall -Wextra -c UHA_COMMON/Src/uha_vars_gen.c (stub main.h
    plus UHA_COMMON/Inc); any warning or error fails.
 2. Builds and runs a small test program (temp dir) that checks the tables
-   at runtime (ids sorted, index table consistent, pValue inside Vars2, ...).
+   at runtime (ids sorted, index table consistent, pVar inside Vars2 on an
+   8-byte item boundary, ...).
 
 Run tools/gen_all.py first so uha_vars_gen.h/.c are up to date.
 
@@ -41,20 +42,20 @@ int main(void)
   const char* lo = (const char*)&Vars2;
   const char* hi = (const char*)(&Vars2 + 1);
 
-  CHECK(sizeof(sVars) == 4u * VARS_COUNT);
+  CHECK(sizeof(sVars) == VAR_ITEM_SIZE * VARS_COUNT);
   for (i = 0; i < VARS_COUNT; i++)
   {
-    const char* p = (const char*)VarMeta[i].pValue;
+    const char* p = (const char*)VarMeta[i].pVar;
     if (i > 0) CHECK(VarMeta[i].Id > VarMeta[i - 1].Id);
     CHECK(VarMeta[i].Id <= VAR_MAX_ID);
     CHECK(VarIdToIndex[VarMeta[i].Id] == i);
-    CHECK(p >= lo && p + 4 <= hi);
-    CHECK(((size_t)(p - lo)) % 4u == 0u);
+    CHECK(p >= lo && p + VAR_ITEM_SIZE <= hi);
+    CHECK(((size_t)(p - lo)) % VAR_ITEM_SIZE == 0u);
     CHECK(VarMeta[i].Type <= VT_ENUM);
     CHECK(VarMeta[i].TimeoutMs >= VarMeta[i].PeriodMs);
     CHECK(VarMeta[i].LegacyScale > 0.0f);
     if (VarMeta[i].Flags & VMF_ON_CAN) oncan++;
-    if (i > 0) for (j = 0; j < i; j++) if (VarMeta[j].pValue == VarMeta[i].pValue) { CHECK(0 && "duplicate pValue"); }
+    if (i > 0) for (j = 0; j < i; j++) if (VarMeta[j].pVar == VarMeta[i].pVar) { CHECK(0 && "duplicate pVar"); }
   }
   for (i = 0; i <= VAR_MAX_ID; i++)
     if (VarIdToIndex[i] != VAR_IDX_UNKNOWN) { known++; CHECK(VarIdToIndex[i] < VARS_COUNT); }
@@ -67,13 +68,19 @@ int main(void)
   CHECK(VarMeta[VarIdToIndex[VID_BMS1_SOC]].LegacyId == VAR_BMS1_SOC);
   CHECK(VAR_BMS1_SOC == 20);
   CHECK(VID_BMS1_CELL_V_16 == 195);
-  CHECK(VarMeta[VarIdToIndex[VID_BMS1_CELL_V_3]].pValue == (void*)&Vars2.Bms1.Cell_V[2]);
+  CHECK(VarMeta[VarIdToIndex[VID_BMS1_CELL_V_3]].pVar == (void*)&Vars2.PackWorkshop251Ah.CellVoltage_V[2]);
+  CHECK(VarMeta[VarIdToIndex[VID_BMS3_CELL_TEMP_C_16]].pVar == (void*)&Vars2.PackHome80Ah.CellTemp_C[15]);
+  CHECK(VarMeta[VarIdToIndex[VID_STRG1_SOC]].pVar == (void*)&Vars2.HomeEnergy.Storage.Soc_pct);
+  CHECK(VarMeta[VarIdToIndex[VID_LPV2_PROD_WH]].pVar == (void*)&Vars2.WorkshopEnergy.Pv.Prod_Wh);
+  CHECK(VarMeta[VarIdToIndex[VID_LOAD_A]].pVar == (void*)&Vars2.GlobalEnergy.Load.Current_A);
+  CHECK(VarMeta[VarIdToIndex[VID_TEMP_OUTSIDE_C]].pVar == (void*)&Vars2.Temperatures.Elecon.Outside_C);
+  CHECK(VarMeta[VarIdToIndex[VID_STRG2_BALANCED_TODAY]].Type == VT_BOOL);
   CHECK(VarMeta[VarIdToIndex[VID_BMS1_CELL_V_3]].LegacyId == VAR_BMS1_CELL3_MV);
 
   printf("VARS_COUNT=%u VAR_MAX_ID=%u VARS_ON_CAN_COUNT=%u\n",
          (unsigned)VARS_COUNT, (unsigned)VAR_MAX_ID, (unsigned)VARS_ON_CAN_COUNT);
   printf("ARM size estimate: VarMeta %u B (flash), VarIdToIndex %u B (flash), Vars2 %u B (RAM)\n",
-         20u * VARS_COUNT, 2u * (VAR_MAX_ID + 1u), 4u * VARS_COUNT);
+         20u * VARS_COUNT, 2u * (VAR_MAX_ID + 1u), VAR_ITEM_SIZE * VARS_COUNT);
   printf("PC: sizeof(sVarMeta)=%u, sizeof(sVars)=%u\n", (unsigned)sizeof(sVarMeta), (unsigned)sizeof(sVars));
   printf(fails ? "RUNTIME CHECK FAILED (%d)\n" : "runtime checks OK\n", fails);
   return fails ? 1 : 0;

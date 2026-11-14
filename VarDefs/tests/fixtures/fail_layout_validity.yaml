@@ -1,0 +1,18 @@
+# expect: invalid validity 'per_var'
+# expect: 'validity' belongs to a group with 'vars', not to a container
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  g:
+    producer: N1
+    validity: per_var
+    vars:
+      - {id: 1, name: G_A, field: GA, period_ms: 1000}
+  c:
+    producer: N1
+    validity: per_field
+    subgroups:
+      s:
+        vars:
+          - {id: 2, name: G_B, field: GB, period_ms: 1000}

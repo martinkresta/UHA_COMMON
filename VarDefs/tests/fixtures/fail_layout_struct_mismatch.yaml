@@ -1,0 +1,17 @@
+# expect: struct 'Pack': layout differs from 'PackA'
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  PackA:
+    producer: N1
+    struct: Pack
+    vars:
+      - {id: 1, name: A_SOC, field: Soc_pct, unit: "%", period_ms: 1000}
+      - {id: 2, name: A_V, field: Voltage_V, unit: "V", period_ms: 1000}
+  PackB:
+    producer: N2
+    struct: Pack
+    vars:
+      - {id: 3, name: B_SOC, field: Soc_pct, unit: "%", period_ms: 1000}
+      - {id: 4, name: B_V, field: Voltage_V, type: int32, unit: "V", period_ms: 1000}

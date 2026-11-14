@@ -1,0 +1,17 @@
+# expect: field 'Voltage' must end with _V (unit 'V')
+# expect: field 'Soc_pc' must end with _pct (unit '%')
+# expect: field 'Flag_A' has a unit suffix but no unit
+# expect: field 'Mode_A' has a unit suffix but no unit (enum)
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+enums:
+  M: {0: A, 1: B}
+groups:
+  g:
+    producer: N1
+    vars:
+      - {id: 1, name: G_V, field: Voltage, unit: "V", period_ms: 1000}
+      - {id: 2, name: G_SOC, field: Soc_pc, unit: "%", period_ms: 1000}
+      - {id: 3, name: G_FLAG, field: Flag_A, type: bool, period_ms: 1000}
+      - {id: 4, name: G_MODE, field: Mode_A, type: enum, enum: M, period_ms: 1000}

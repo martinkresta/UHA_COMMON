@@ -9,16 +9,31 @@
 #define VARS2_TYPES_H_
 
 #include <stdint.h>
+#include <stddef.h>
 
-/* value type of a variable (4-byte storage, not transmitted on CAN) */
+/* value type of a variable (4-byte value, not transmitted on CAN) */
 typedef enum
 {
   VT_FLOAT  = 0,
   VT_INT32  = 1,
   VT_UINT32 = 2,
-  VT_BOOL   = 3,   /* stored as uint32_t, 0 / 1 */
-  VT_ENUM   = 4    /* stored as uint32_t */
+  VT_BOOL   = 3,   /* stored as int32, 0 / 1 */
+  VT_ENUM   = 4    /* stored as int32 */
 } eVarType;
+
+/* One variable in Vars2: value in physical units + validity.
+ * All three have the same layout (4-byte value at offset 0, valid at offset 4,
+ * 8 bytes), so every group struct is a plain array of 8-byte items. */
+typedef struct { float    value; uint8_t valid; } sVarF32;
+typedef struct { int32_t  value; uint8_t valid; } sVarI32;   /* int32, enum, bool */
+typedef struct { uint32_t value; uint8_t valid; } sVarU32;
+
+#define VAR_ITEM_SIZE    8u
+#define VAR_VALID_OFFSET 4u
+
+typedef char VARS2_SIZE_sVarF32[(sizeof(sVarF32) == VAR_ITEM_SIZE && offsetof(sVarF32, valid) == VAR_VALID_OFFSET) ? 1 : -1];
+typedef char VARS2_SIZE_sVarI32[(sizeof(sVarI32) == VAR_ITEM_SIZE && offsetof(sVarI32, valid) == VAR_VALID_OFFSET) ? 1 : -1];
+typedef char VARS2_SIZE_sVarU32[(sizeof(sVarU32) == VAR_ITEM_SIZE && offsetof(sVarU32, valid) == VAR_VALID_OFFSET) ? 1 : -1];
 
 #define VMF_ON_CAN       0x01u   /* published on CAN */
 
@@ -27,7 +42,7 @@ typedef enum
 
 typedef struct
 {
-  void*    pValue;        /* -> field in Vars2 (4-byte value) */
+  void*    pVar;          /* -> sVarF32 / sVarI32 / sVarU32 field in Vars2 */
   float    LegacyScale;   /* old int16 raw = physical * LegacyScale */
   uint16_t Id;
   uint16_t PeriodMs;

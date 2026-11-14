@@ -1,0 +1,13 @@
+# expect: group has both 'vars' and 'subgroups'
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  c:
+    producer: N1
+    vars:
+      - {id: 1, name: G_A, field: GA, period_ms: 1000}
+    subgroups:
+      s:
+        vars:
+          - {id: 2, name: G_B, field: GB, period_ms: 1000}

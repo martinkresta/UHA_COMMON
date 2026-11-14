@@ -1,0 +1,12 @@
+# expect: producer set on both 'c' and its subgroup
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+groups:
+  c:
+    producer: N1
+    subgroups:
+      s:
+        producer: N2
+        vars:
+          - {id: 1, name: G_A, field: GA, period_ms: 1000}

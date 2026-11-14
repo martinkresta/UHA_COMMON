@@ -6,4 +6,4 @@ groups:
   g:
     producer: N1
     vars:
-      - {id: 10, name: BAT_SOC, legacy: VAR_BAT_SOC, unit: "%", period_ms: 1000, timeout_ms: 100}
+      - {id: 10, name: BAT_SOC, field: BatSoc_pct, legacy: VAR_BAT_SOC, unit: "%", period_ms: 1000, timeout_ms: 100}

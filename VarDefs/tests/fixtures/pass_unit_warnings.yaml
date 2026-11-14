@@ -8,6 +8,6 @@ groups:
   g:
     producer: N1
     vars:
-      - {id: 1, name: G_A_W, period_ms: 1000}
-      - {id: 2, name: G_T_C, unit: "V", period_ms: 1000}
-      - {id: 3, name: G_CNT, type: int32, legacy_scale: 0.1, period_ms: 1000}
+      - {id: 1, name: G_A_W, field: GAW, period_ms: 1000}
+      - {id: 2, name: G_T_C, field: GTC_V, unit: "V", period_ms: 1000}
+      - {id: 3, name: G_CNT, field: GCnt, type: int32, legacy_scale: 0.1, period_ms: 1000}

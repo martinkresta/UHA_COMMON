@@ -18,6 +18,10 @@ Import:
     mcan_h   same for MCAN.h (node ids vs NODEID_*)
     baseline None, a path, or an already loaded Model
     src_root None or a directory scanned for ELM_AddMeter() calls (**/Core/Src/*.c)
+
+Layout rules (direct access): groups hold `vars` or `subgroups` (max 3 levels), one producer per
+group (on the group or its container, never on a variable), explicit `field` names with the unit
+suffix, groups sharing a `struct` have identical field lists.
 """
 
 import argparse
@@ -31,8 +35,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from vars_model import (TYPES, UNIT_SUFFIX, UNIT_TOKENS, Model, VarDef, VarsYamlError,  # noqa: E402
-                        legacy_range, load_model)
+from vars_model import (FIELD_SUFFIX, TYPES, UNIT_NAME_TOKEN, UNIT_TOKENS, VALIDITY,  # noqa: E402
+                        Group, Model, VarDef, VarsYamlError, legacy_range, load_model)
 
 VARDEFS_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_VARS_H = VARDEFS_DIR.parent / "Inc" / "VARS.h"
@@ -40,9 +44,10 @@ DEFAULT_MCAN_H = VARDEFS_DIR.parent / "Inc" / "MCAN.h"
 RE_NODEID = re.compile(r"#define\s+NODEID_(\w+)\s+(\d+)")
 
 KNOWN_TOP_KEYS = {"version", "nodes", "defaults", "enums", "groups"}
-KNOWN_GROUP_KEYS = {"producer", "vars"}
-KNOWN_VAR_KEYS = {"id", "name", "legacy", "type", "enum", "unit", "legacy_scale", "producer",
+KNOWN_GROUP_KEYS = {"producer", "vars", "subgroups", "struct", "validity"}
+KNOWN_VAR_KEYS = {"id", "name", "field", "legacy", "type", "enum", "unit", "legacy_scale",
                   "period_ms", "timeout_ms", "on_can", "count", "receivers", "desc"}
+KNOWN_DEFAULT_KEYS = (KNOWN_VAR_KEYS - {"id", "name", "field"}) | {"producer"}
 RECEIVE_ONLY_NODES = {"RPI"}
 MAX_ID = 0xFFFE
 U16_MAX = 0xFFFF
@@ -52,10 +57,10 @@ RE_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 RE_C_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 RE_ENUM_ITEM = re.compile(r"^[A-Za-z0-9_]+$")
 RE_VARS_H = re.compile(r"#define\s+(VAR_\w+)\s+(\d+)")
-RE_ELM_ADD = re.compile(r"ELM_AddMeter\(\s*\w+\s*,\s*\w+\s*,\s*(VAR_\w+)\s*\)")
+RE_ELM_ADD = re.compile(r"ELM_AddMeter\(\s*\w+\s*,\s*\w+\s*,\s*((?:VAR|VID)_\w+)\s*\)")
 RE_CONS_WH = re.compile(r"^CONS_(.+)_WH$")
 RE_POW_W = re.compile(r"^POW_(.+)_W$")
-ELM_GROUP = "el_meters"
+ELM_GROUP = "Meters"      # top-level container of the ELM meter groups
 ELM_OFFSET = 10
 
 
@@ -157,11 +162,11 @@ class _Ctx:
             self.key_lines, self.dup_keys = _scan_nodes(model.path)
         except (OSError, yaml.YAMLError):
             self.key_lines, self.dup_keys = {}, []
-        # (group key, index in vars list) for every VarDef
-        self.var_pos: Dict[int, Tuple[str, int]] = {}
-        for g in model.groups:
+        # (group YAML path, index in vars list) for every VarDef
+        self.var_pos: Dict[int, Tuple[Tuple, int]] = {}
+        for g in model.leaf_groups:
             for i, d in enumerate(g.vars):
-                self.var_pos[id(d)] = (g.key, i)
+                self.var_pos[id(d)] = (g.ypath, i)
 
     def add(self, sev, line, where, msg):
         self.issues.append(Issue(sev, line, where, msg))
@@ -170,12 +175,22 @@ class _Ctx:
         return self.key_lines.get(tuple(str(p) if not isinstance(p, int) else p for p in path), default)
 
     def vline(self, d: VarDef, key: Optional[str] = None) -> Optional[int]:
-        g, i = self.var_pos.get(id(d), (d.group, None))
+        gp, i = self.var_pos.get(id(d), (d.grp.ypath if d.grp is not None else (), None))
         if key is not None and i is not None:
-            ln = self.kl("groups", g, "vars", i, key)
+            ln = self.kl(*gp, "vars", i, key)
             if ln:
                 return ln
-        return d.line or self.kl("groups", g, "vars", i) or self.kl("groups", g)
+        return d.line or (self.kl(*gp, "vars", i) if i is not None else None) or self.kl(*gp)
+
+    def gline(self, g: Group, key: Optional[str] = None) -> Optional[int]:
+        if key is not None:
+            ln = self.kl(*g.ypath, key)
+            if ln:
+                return ln
+        return g.line or self.kl(*g.ypath)
+
+    def ge(self, g: Group, key, msg):
+        self.add("E", self.gline(g, key), g.path, msg)
 
     @staticmethod
     def vwhere(d: VarDef) -> str:
@@ -189,7 +204,16 @@ class _Ctx:
 
 
 def _all_defs(m: Model) -> List[VarDef]:
-    return [d for g in m.groups for d in g.vars]
+    return [d for g in m.leaf_groups for d in g.vars]
+
+
+def _all_groups(m: Model) -> List[Group]:
+    """Top-level groups followed by their subgroups."""
+    out = []
+    for g in m.groups:
+        out.append(g)
+        out.extend(g.subgroups)
+    return out
 
 
 def _fmt_ids(ids: List[int]) -> str:
@@ -224,7 +248,7 @@ def _rule_schema(c: _Ctx):
     if "defaults" in raw and raw["defaults"] is not None and not isinstance(raw["defaults"], dict):
         c.add("E", c.kl("defaults"), "top", "'defaults' must be a mapping")
     for k in m.defaults:
-        if k not in KNOWN_VAR_KEYS:
+        if k not in KNOWN_DEFAULT_KEYS:
             c.add("W", c.kl("defaults", k), "defaults", f"unknown key '{k}' in defaults")
 
     # nodes
@@ -242,31 +266,55 @@ def _rule_schema(c: _Ctx):
             seen_ids[nid] = name
 
     # groups
-    graw = raw.get("groups") if isinstance(raw.get("groups"), dict) else {}
-    for g in m.groups:
-        gd = graw.get(g.key)
-        gln = g.line or c.kl("groups", g.key)
-        if not isinstance(gd, dict):
-            c.add("E", c.kl("groups", g.key), f"{g.key}", "group must be a mapping with a 'vars' list")
+    for g in _all_groups(m):
+        gd = g.raw
+        gln = c.gline(g)
+        if g.line is None:
+            c.ge(g, None, "group must be a mapping with a 'vars' list or 'subgroups'")
             continue
-        if not isinstance(gd.get("vars"), list):
-            c.add("E", gln, f"{g.key}", "group has no 'vars' list")
         for k in gd:
-            if k != "__line__" and k not in KNOWN_GROUP_KEYS:
-                c.add("W", c.kl("groups", g.key, k) or gln, f"{g.key}", f"unknown group key '{k}'")
-        if isinstance(gd.get("vars"), list):
+            if k not in KNOWN_GROUP_KEYS:
+                c.add("W", c.gline(g, k), g.path, f"unknown group key '{k}'")
+        has_vars, has_subs = "vars" in gd, "subgroups" in gd
+        if has_vars and has_subs:
+            c.ge(g, "subgroups", "group has both 'vars' and 'subgroups'")
+        elif has_subs:
+            if g.parent is not None:
+                c.ge(g, "subgroups", "subgroups inside a subgroup (max 3 levels: Vars2.Group.Subgroup.Field)")
+            elif not isinstance(gd["subgroups"], dict) or not g.subgroups:
+                c.ge(g, "subgroups", "'subgroups' must be a non-empty mapping of groups")
+            if "validity" in gd:
+                c.ge(g, "validity", "'validity' belongs to a group with 'vars', not to a container")
+        elif not isinstance(gd.get("vars"), list):
+            c.ge(g, None, "group has no 'vars' list")
+        else:
             for i, vr in enumerate(gd["vars"]):
                 if not isinstance(vr, dict):
-                    c.add("E", c.kl("groups", g.key, "vars", i) or gln, f"{g.key}/?",
+                    c.add("E", c.kl(*g.ypath, "vars", i) or gln, f"{g.path}/?",
                           f"var entry #{i + 1} is not a mapping")
+        if "struct" in gd:
+            if g.parent is not None:
+                c.ge(g, "struct", "'struct' is allowed on top-level groups only")
+            elif not isinstance(g.struct, str) or not RE_C_IDENT.match(g.struct):
+                c.ge(g, "struct", f"'struct' must be a C identifier, got {g.struct!r}")
+        if "validity" in gd and g.validity not in VALIDITY:
+            c.ge(g, "validity", f"invalid validity {g.validity!r} (allowed: {', '.join(VALIDITY)})")
+        if g.parent is not None and g.producer_raw is not None and g.parent.producer_raw is not None:
+            c.ge(g, "producer", f"producer set on both '{g.parent.key}' and its subgroup; set it on one level")
 
     # vars
     for d in _all_defs(c.m):
         if not d.raw and d.line is None:
             continue  # non-mapping entry, reported above
         for k in d.raw:
-            if k not in KNOWN_VAR_KEYS:
+            if k == "producer":
+                c.ve(d, k, "'producer' belongs to the group (one producer per group), not to a variable")
+            elif k not in KNOWN_VAR_KEYS:
                 c.vw(d, k, f"unknown key '{k}'")
+        if "field" not in d.raw:
+            c.ve(d, None, "missing 'field' (C field name, e.g. Voltage_V)")
+        elif not isinstance(d.field, str) or not RE_C_IDENT.match(d.field):
+            c.ve(d, "field", f"'field' {d.field!r} is not a C identifier")
         if "id" not in d.raw:
             c.ve(d, None, "missing 'id'")
         elif not _is_int(d.id):
@@ -341,19 +389,16 @@ def _rule_unique(c: _Ctx):
 # ---------------------------------------------------------------------------
 def _rule_nodes(c: _Ctx):
     nodes = c.m.nodes
-    for g in c.m.groups:
-        if g.producer is not None:
-            ln = c.kl("groups", g.key, "producer") or g.line
-            if g.producer not in nodes:
-                c.add("E", ln, g.key, f"group producer '{g.producer}' is not a node")
-            elif g.producer in RECEIVE_ONLY_NODES:
-                c.add("E", ln, g.key, f"group producer '{g.producer}' is a receive-only node")
+    for g in _all_groups(c.m):
+        if g.producer_raw is not None:
+            if g.producer_raw not in nodes:
+                c.ge(g, "producer", f"group producer '{g.producer_raw}' is not a node")
+            elif g.producer_raw in RECEIVE_ONLY_NODES:
+                c.ge(g, "producer", f"group producer '{g.producer_raw}' is a receive-only node")
+    dp = c.m.defaults.get("producer")
+    if dp is not None and (dp not in nodes or dp in RECEIVE_ONLY_NODES):
+        c.add("E", c.kl("defaults", "producer"), "defaults", f"default producer '{dp}' is not a producing node")
     for d in _all_defs(c.m):
-        if "producer" in d.raw or ("producer" in c.m.defaults and c.m.group(d.group).producer is None):
-            if d.producer is not None and d.producer not in nodes:
-                c.ve(d, "producer", f"producer '{d.producer}' is not a node")
-            elif d.producer in RECEIVE_ONLY_NODES:
-                c.ve(d, "producer", f"producer '{d.producer}' is a receive-only node")
         for r in d.receivers:
             if r not in nodes:
                 c.ve(d, "receivers", f"receiver '{r}' is not a node")
@@ -481,7 +526,7 @@ def _rule_timing(c: _Ctx):
         if not d.raw:
             continue
         if d.producer is None:
-            c.ve(d, None, "no producer (set 'producer' on the var or the group)")
+            c.ve(d, None, "no producer (set 'producer' on the group or its container)")
         p = d.period_ms
         if p is None:
             c.ve(d, None, "missing 'period_ms'")
@@ -504,27 +549,45 @@ def _rule_timing(c: _Ctx):
 # ---------------------------------------------------------------------------
 # Rule 8: generated C names
 # ---------------------------------------------------------------------------
+def _layout(g: Group):
+    """Comparable field layout of a group (shared `struct` types must match)."""
+    if g.is_container:
+        return ("container", tuple((s.key, _layout(s)) for s in g.subgroups))
+    return ("vars", tuple((d.field, d.type, d.enum, d.n, d.unit) for d in g.vars))
+
+
 def _rule_c_names(c: _Ctx):
-    seen_struct: Dict[str, str] = {}
-    for g in c.m.groups:
-        ln = g.line or c.kl("groups", g.key)
-        if not RE_C_IDENT.match(g.c_member or ""):
-            c.add("E", ln, g.key, f"group key gives invalid C member name '{g.c_member}'")
-        if g.c_struct in seen_struct:
-            c.add("E", ln, g.key, f"struct name {g.c_struct} also generated by group '{seen_struct[g.c_struct]}'")
-        else:
-            seen_struct[g.c_struct] = g.key
+    seen_member: Dict[Tuple, Group] = {}
+    for g in _all_groups(c.m):
+        if not RE_C_IDENT.match(str(g.key)):
+            c.ge(g, None, f"group key '{g.key}' is not a valid C member name")
+        scope = (g.parent.key if g.parent is not None else None, g.key)
+        seen_member.setdefault(scope, g)
         fields: Dict[str, VarDef] = {}
         for d in g.vars:
-            if not isinstance(d.name, str):
+            if not d.c_field:
                 continue
-            if not RE_C_IDENT.match(d.c_field or ""):
-                c.ve(d, "name", f"generated C field name '{d.c_field}' is not a valid C identifier")
             other = fields.get(d.c_field)
-            if other is not None and other.name != d.name:
-                c.ve(d, "name", f"C field {g.c_struct}.{d.c_field} also generated by {other.name} "
-                                f"(line {c.vline(other, 'name')})")
+            if other is not None:
+                c.ve(d, "field", f"field {g.path}.{d.c_field} also used by {other.name} "
+                                 f"(line {c.vline(other, 'field')})")
             fields.setdefault(d.c_field, d)
+
+    # C struct types: one per top-level group or shared `struct`, one per subgroup of it
+    types: Dict[str, Tuple[Group, Any]] = {}
+    for g in _all_groups(c.m):
+        prev = types.get(g.c_struct)
+        if prev is None:
+            types[g.c_struct] = (g, _layout(g))
+            continue
+        pg, playout = prev
+        top, ptop = (g.parent or g), (pg.parent or pg)
+        shared = isinstance(top.struct, str) and top.struct == ptop.struct
+        if not shared:
+            c.ge(g, None, f"struct type {g.c_struct} also generated by group '{pg.path}'")
+        elif _layout(g) != playout:
+            c.ge(g, None, f"struct '{top.struct}': layout differs from '{pg.path}' "
+                          f"(groups with the same struct need identical fields, types, counts, units)")
     seen_vid: Dict[str, Any] = {}
     for v in c.m.values:
         o = seen_vid.get(v.vid)
@@ -546,8 +609,11 @@ def _rule_elm(c: _Ctx, src_root):
     by_id = {}
     for v in c.m.values:
         by_id.setdefault(v.id, v)
+    def in_elm(v):
+        return v.base.grp is not None and (v.base.grp.parent or v.base.grp).key == ELM_GROUP
+
     for v in c.m.values:
-        if v.group != ELM_GROUP:
+        if not in_elm(v):
             continue
         mc = RE_CONS_WH.match(v.name)
         if not mc:
@@ -562,22 +628,24 @@ def _rule_elm(c: _Ctx, src_root):
             c.ve(v.base, "id", f"ELM rule: id {p.id} (= id + {ELM_OFFSET}) is {p.name}, expected POW_*_W")
         elif mp.group(1) != mc.group(1):
             c.vw(v.base, "id", f"ELM rule: id {p.id} is {p.name}, expected POW_{mc.group(1)}_W")
-        if mp and p.producer != v.producer:   # ELM on the energy producer writes the power too
-            c.ve(p.base, "producer", f"ELM rule: {p.name} producer {p.producer} differs from "
-                                     f"{v.name} producer {v.producer}")
+        if mp and p.base.grp is not v.base.grp:   # ELM on the energy producer writes the power too
+            c.ve(p.base, "id", f"ELM rule: {p.name} is in group {p.group}, "
+                               f"{v.name} in {v.group} (must be the same group)")
 
     if not src_root:
         return
-    by_legacy = {}
+    by_sym = {}
     for v in c.m.values:
         if isinstance(v.legacy, str):
-            by_legacy.setdefault(v.legacy, v)
+            by_sym.setdefault(v.legacy, v)
+        by_sym.setdefault(v.vid, v)
     for fname, ln, var in scan_elm_calls(src_root):
-        v = by_legacy.get(var)
+        v = by_sym.get(var)
         src = f"{fname}:{ln}"
         if v is None:
-            c.add("W", 0, "src", f"{src}: ELM_AddMeter(..., {var}) - {var} is not a legacy of any YAML variable")
-        elif v.group != ELM_GROUP or not RE_CONS_WH.match(v.name):
+            c.add("W", 0, "src", f"{src}: ELM_AddMeter(..., {var}) - {var} is not a VID_* or legacy of any "
+                                 f"YAML variable")
+        elif not in_elm(v) or not RE_CONS_WH.match(v.name):
             c.vw(v.base, "legacy", f"{src}: ELM_AddMeter(..., {var}) but {v.name} is not a CONS_*_WH "
                                    f"variable in group {ELM_GROUP} (ELM writes power to id + {ELM_OFFSET})")
 
@@ -623,14 +691,26 @@ def _rule_units(c: _Ctx):
         toks = d.name.split("_")
         tok = toks[-1]
         if len(toks) >= 2 and tok in UNIT_TOKENS:
-            mapped = UNIT_SUFFIX.get(d.unit) if isinstance(d.unit, str) else None
-            if mapped is None or mapped[0] != tok:
-                exp = [u for u, (t, _) in UNIT_SUFFIX.items() if t == tok]
+            mapped = UNIT_NAME_TOKEN.get(d.unit) if isinstance(d.unit, str) else None
+            if mapped != tok:
+                exp = [u for u, t in UNIT_NAME_TOKEN.items() if t == tok]
                 c.vw(d, "unit" if "unit" in d.raw else "name",
                      f"name ends with unit token _{tok} but unit is {d.unit!r} (expected {' or '.join(map(repr, exp))})")
         if d.type in ("int32", "uint32", "bool", "enum") and _is_num(d.legacy_scale) \
                 and float(d.legacy_scale) != int(d.legacy_scale):
             c.vw(d, "legacy_scale", f"non-integer legacy_scale {d.legacy_scale} on {d.type} variable")
+        if d.c_field:
+            has_suffix = "_" in d.c_field
+            suffix = d.c_field.rsplit("_", 1)[-1] if has_suffix else None
+            if isinstance(d.unit, str) and d.type not in ("bool", "enum"):
+                want = FIELD_SUFFIX.get(d.unit)
+                if want is None:
+                    c.vw(d, "unit", f"unit {d.unit!r} has no field suffix rule (known: {', '.join(FIELD_SUFFIX)})")
+                elif suffix != want:
+                    c.ve(d, "field", f"field '{d.c_field}' must end with _{want} (unit {d.unit!r})")
+            elif has_suffix:
+                c.ve(d, "field", f"field '{d.c_field}' has a unit suffix but no unit"
+                                 + (f" ({d.type})" if d.type in ("bool", "enum") else ""))
 
 
 # ---------------------------------------------------------------------------

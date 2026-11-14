@@ -6,5 +6,5 @@ groups:
   g:
     producer: N1
     vars:
-      - {id: 5, name: G_A, period_ms: 1000}
-      - {id: 5, name: G_B, period_ms: 1000}
+      - {id: 5, name: G_A, field: GA, period_ms: 1000}
+      - {id: 5, name: G_B, field: GB, period_ms: 1000}
