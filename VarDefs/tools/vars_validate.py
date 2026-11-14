@@ -47,7 +47,8 @@ RE_NODEID = re.compile(r"#define\s+NODEID_(\w+)\s+(\d+)")
 KNOWN_TOP_KEYS = {"version", "nodes", "defaults", "enums", "groups"}
 KNOWN_GROUP_KEYS = {"producer", "vars", "subgroups", "struct", "validity"}
 KNOWN_VAR_KEYS = {"id", "name", "field", "legacy", "type", "enum", "unit", "legacy_scale",
-                  "period_ms", "timeout_ms", "on_can", "count", "receivers", "desc"}
+                  "period_ms", "timeout_ms", "on_can", "count", "receivers", "desc",
+                  "log_s", "agg"}  # log_s / agg: UhaGatePy DB logging only, not used by the FW
 KNOWN_DEFAULT_KEYS = (KNOWN_VAR_KEYS - {"id", "name", "field"}) | {"producer"}
 RECEIVE_ONLY_NODES = {"RPI"}
 MAX_ID = 0xFFFE
@@ -327,6 +328,10 @@ def _rule_schema(c: _Ctx):
             c.ve(d, "on_can", f"'on_can' must be true/false, got {d.on_can!r}")
         if d.unit is not None and not isinstance(d.unit, str):
             c.ve(d, "unit", f"'unit' must be a string, got {d.unit!r}")
+        if "log_s" in d.raw and d.raw["log_s"] not in (10, 60):
+            c.ve(d, "log_s", f"'log_s' must be 10 or 60, got {d.raw['log_s']!r}")
+        if "agg" in d.raw and d.raw["agg"] not in ("avg", "delta"):
+            c.ve(d, "agg", f"'agg' must be avg or delta, got {d.raw['agg']!r}")
         rv = d.raw.get("receivers", c.m.defaults.get("receivers"))
         if rv is not None and not isinstance(rv, list):
             c.ve(d, "receivers", "'receivers' must be a list")

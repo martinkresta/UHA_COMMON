@@ -23,6 +23,9 @@
 #   period_ms     publish period of the producer (VARS2 sends it by this period)
 #   on_can: false NOT on CAN, only forwarded ELECON -> RPi over serial (tunnel)
 #   receivers     documentation only (who reads it today); FW stores everything
+#   log_s         UhaGatePy only: log period into the RPi database in s (10 or 60); missing = not logged
+#   agg           UhaGatePy only: avg (default, mean over log_s) | delta (daily/total counter, the increment
+#                 per interval is stored; a drop below half = reset). On an array: every element
 #   ELM rule      ELM.c writes power to (energy id + 10): CONS_x_WH id N -> POW_x_W id N+10 (validator checks it)
 
 version: 0
@@ -71,6 +74,7 @@ groups:
             legacy: VAR_BAT_SOC
             unit: '%'
             period_ms: 1000
+            log_s: 60
             receivers: [ELECON_D, RECU, TECHM, RPI]
           - id: 11
             name: BAT_VOLTAGE_V
@@ -79,6 +83,7 @@ groups:
             unit: V
             legacy_scale: 10
             period_ms: 1000
+            log_s: 60
             receivers: [TECHM, RPI]
           - id: 14
             name: BAT_CURRENT_A
@@ -87,6 +92,7 @@ groups:
             unit: A
             legacy_scale: 10
             period_ms: 1000
+            log_s: 10
             receivers: [TECHM, RPI]
           - id: 16
             name: BAT_ENERGY_WH
@@ -94,6 +100,7 @@ groups:
             legacy: VAR_BAT_ENERGY_WH
             unit: Wh
             period_ms: 3000
+            log_s: 60
             on_can: false
             receivers: [RPI]
           - id: 18
@@ -102,6 +109,7 @@ groups:
             legacy: VAR_BAT_POWER_W
             unit: W
             period_ms: 5000
+            log_s: 10
             on_can: false
             receivers: [RPI]
       Solar:   # mSolarValid
@@ -112,6 +120,7 @@ groups:
             legacy: VAR_SOLAR_POWER_W
             unit: W
             period_ms: 3000
+            log_s: 10
             on_can: false
             receivers: [RPI]
           - id: 9
@@ -132,6 +141,7 @@ groups:
             unit: A
             legacy_scale: 100
             period_ms: 1000
+            log_s: 10
             receivers: [RPI]
           - id: 15
             name: CONS_TODAY_WH
@@ -148,6 +158,7 @@ groups:
             legacy: VAR_LOAD_W
             unit: W
             period_ms: 1000
+            log_s: 10
             on_can: false
             receivers: [RPI]
 
@@ -161,6 +172,7 @@ groups:
         legacy: VAR_BMS1_SOC
         unit: '%'
         period_ms: 1000
+        log_s: 60
         receivers: [RPI]
       - id: 21
         name: BMS1_CURRENT_A
@@ -169,6 +181,7 @@ groups:
         unit: A
         legacy_scale: 10
         period_ms: 1000
+        log_s: 10
         receivers: [RPI]
       - id: 22
         name: BMS1_VOLTAGE_V
@@ -177,6 +190,7 @@ groups:
         unit: V
         legacy_scale: 10
         period_ms: 1000
+        log_s: 60
         receivers: [RPI]
       - id: 23
         name: BMS1_ENERGY_STORED_WH
@@ -184,6 +198,7 @@ groups:
         legacy: VAR_BMS1_ENERGY_STORED_WH
         unit: Wh
         period_ms: 1000
+        log_s: 60
         receivers: [RPI]
       - id: 24
         name: BMS1_TODAY_ENERGY_WH
@@ -200,6 +215,7 @@ groups:
         unit: V
         legacy_scale: 1000
         period_ms: 5000
+        log_s: 10
         receivers: [RPI]
       - id: 196            # 196..211
         name: BMS1_CELL_TEMP_C
@@ -220,6 +236,7 @@ groups:
         legacy: VAR_BMS2_SOC
         unit: '%'
         period_ms: 1000
+        log_s: 60
         on_can: false
         receivers: [RPI]
       - id: 31
@@ -229,6 +246,7 @@ groups:
         unit: A
         legacy_scale: 10
         period_ms: 3000
+        log_s: 10
         on_can: false
         receivers: [RPI]
       - id: 32
@@ -238,6 +256,7 @@ groups:
         unit: V
         legacy_scale: 10
         period_ms: 3000
+        log_s: 60
         on_can: false
         receivers: [RPI]
       - id: 33
@@ -246,6 +265,7 @@ groups:
         legacy: VAR_BMS2_ENERGY_STORED_WH
         unit: Wh
         period_ms: 3000
+        log_s: 60
         on_can: false
         receivers: [RPI]
       - id: 34
@@ -264,6 +284,7 @@ groups:
         unit: V
         legacy_scale: 1000
         period_ms: 3000
+        log_s: 10
         on_can: false
         receivers: [RPI]
       - id: 236            # 236..251
@@ -286,6 +307,7 @@ groups:
         legacy: VAR_BMS3_SOC
         unit: '%'
         period_ms: 1000
+        log_s: 60
         on_can: false
         receivers: [RPI]
       - id: 36
@@ -295,6 +317,7 @@ groups:
         unit: A
         legacy_scale: 10
         period_ms: 3000
+        log_s: 10
         on_can: false
         receivers: [RPI]
       - id: 37
@@ -304,6 +327,7 @@ groups:
         unit: V
         legacy_scale: 10
         period_ms: 3000
+        log_s: 60
         on_can: false
         receivers: [RPI]
       - id: 38
@@ -312,6 +336,7 @@ groups:
         legacy: VAR_BMS3_ENERGY_STORED_WH
         unit: Wh
         period_ms: 3000
+        log_s: 60
         on_can: false
         receivers: [RPI]
       - id: 39
@@ -330,6 +355,7 @@ groups:
         unit: V
         legacy_scale: 1000
         period_ms: 3000
+        log_s: 10
         on_can: false
         receivers: [RPI]
       - id: 366            # 366..381
@@ -370,6 +396,8 @@ groups:
         unit: Wh
         legacy_scale: 0.1
         period_ms: 3000
+        log_s: 60
+        agg: delta
         on_can: false
         receivers: [RPI]
       - id: 43
@@ -386,6 +414,7 @@ groups:
         legacy: VAR_MPPT_SOLAR_POWER_W
         unit: W
         period_ms: 1000
+        log_s: 10
         on_can: false
         receivers: [RPI]
       - id: 45
@@ -429,6 +458,7 @@ groups:
         legacy: VAR_MPPT_TEMP_C
         unit: °C
         period_ms: 3000
+        log_s: 60
         on_can: false
         receivers: [RPI]
       - id: 13
@@ -464,6 +494,7 @@ groups:
         unit: A
         legacy_scale: 100
         period_ms: 5000
+        log_s: 10
         on_can: false
         receivers: [RPI]
 
@@ -480,6 +511,7 @@ groups:
             unit: '%'
             legacy_scale: 100
             period_ms: 2000
+            log_s: 60
             on_can: false
             receivers: [RPI]
           - id: 301
@@ -488,6 +520,7 @@ groups:
             legacy: VAR_STRG1_POWER_W
             unit: W
             period_ms: 2000
+            log_s: 10
             on_can: false
             receivers: [RPI]
           - id: 302
@@ -497,6 +530,7 @@ groups:
             unit: A
             legacy_scale: 10
             period_ms: 2000
+            log_s: 10
             on_can: false
             receivers: [RPI]
           - id: 303
@@ -505,6 +539,7 @@ groups:
             legacy: VAR_STRG1_ENERGY_WH
             unit: Wh
             period_ms: 2000
+            log_s: 60
             on_can: false
             receivers: [RPI]
           - id: 304
@@ -513,6 +548,7 @@ groups:
             legacy: VAR_STRG1_OPT_CHARGING_A
             unit: A
             period_ms: 2000
+            log_s: 60
             on_can: false
             receivers: [RPI]
           - id: 305
@@ -538,6 +574,7 @@ groups:
             unit: V
             legacy_scale: 10
             period_ms: 2000
+            log_s: 60
             on_can: false
             receivers: [RPI]
       Load:
@@ -548,6 +585,7 @@ groups:
             legacy: VAR_LLOAD1_POWER_W
             unit: W
             period_ms: 2000
+            log_s: 10
             on_can: false
             receivers: [RPI]
           - id: 309
@@ -556,6 +594,8 @@ groups:
             legacy: VAR_LLOAD1_CONS_WH
             unit: Wh
             period_ms: 2000
+            log_s: 60
+            agg: delta
             on_can: false
             receivers: [RPI]
       Pv:
@@ -566,6 +606,7 @@ groups:
             legacy: VAR_LPV1_POWER_W
             unit: W
             period_ms: 2000
+            log_s: 10
             on_can: false
             receivers: [RPI]
           - id: 311
@@ -574,6 +615,8 @@ groups:
             legacy: VAR_LPV1_PROD_WH
             unit: Wh
             period_ms: 2000
+            log_s: 60
+            agg: delta
             on_can: false
             receivers: [RPI]
 
@@ -590,6 +633,7 @@ groups:
             unit: '%'
             legacy_scale: 100
             period_ms: 1000
+            log_s: 60
             receivers: [RPI]
           - id: 321
             name: STRG2_POWER_W
@@ -597,6 +641,7 @@ groups:
             legacy: VAR_STRG2_POWER_W
             unit: W
             period_ms: 1000
+            log_s: 10
             receivers: [ELECON, RPI]
           - id: 322
             name: STRG2_CURRENT_A
@@ -605,6 +650,7 @@ groups:
             unit: A
             legacy_scale: 10
             period_ms: 1000
+            log_s: 10
             receivers: [ELECON, RPI]
           - id: 323
             name: STRG2_ENERGY_WH
@@ -612,6 +658,7 @@ groups:
             legacy: VAR_STRG2_ENERGY_WH
             unit: Wh
             period_ms: 1000
+            log_s: 60
             receivers: [ELECON, RPI]
           - id: 324
             name: STRG2_OPT_CHARGING_A
@@ -619,6 +666,7 @@ groups:
             legacy: VAR_STRG2_OPT_CHARGING_A
             unit: A
             period_ms: 1000
+            log_s: 60
             receivers: [ELECON, RPI]
           - id: 325
             name: STRG2_CAPACITY_AH
@@ -641,6 +689,7 @@ groups:
             unit: V
             legacy_scale: 10
             period_ms: 1000
+            log_s: 60
             receivers: [ELECON, RPI]
       Load:
         vars:
@@ -650,6 +699,7 @@ groups:
             legacy: VAR_LLOAD2_POWER_W
             unit: W
             period_ms: 1000
+            log_s: 10
             receivers: [ELECON, RPI]
           - id: 329
             name: LLOAD2_CONS_WH
@@ -657,6 +707,8 @@ groups:
             legacy: VAR_LLOAD2_CONS_WH
             unit: Wh
             period_ms: 1000
+            log_s: 60
+            agg: delta
             receivers: [ELECON, RPI]
       Pv:
         vars:
@@ -666,6 +718,7 @@ groups:
             legacy: VAR_LPV2_POWER_W
             unit: W
             period_ms: 1000
+            log_s: 10
             receivers: [ELECON, RPI]
           - id: 331
             name: LPV2_PROD_WH
@@ -673,6 +726,8 @@ groups:
             legacy: VAR_LPV2_PROD_WH
             unit: Wh
             period_ms: 1000
+            log_s: 60
+            agg: delta
             receivers: [ELECON, RPI]
 
   Axpert:   # Axpert 8 kW inverter (ELECON_D AXPERT)
@@ -684,6 +739,7 @@ groups:
         legacy: VAR_AXPERT_TEMP_C
         unit: °C
         period_ms: 3000
+        log_s: 60
         receivers: [RPI]
       - id: 279
         name: AXPERT_AC_POWER_W
@@ -691,6 +747,7 @@ groups:
         legacy: VAR_AXPERT_AC_POWER_W
         unit: W
         period_ms: 3000
+        log_s: 10
         receivers: [RPI]
       - id: 280
         name: AXPERT_BAT_CHARGING_A
@@ -713,6 +770,7 @@ groups:
         unit: V
         legacy_scale: 10
         period_ms: 3000
+        log_s: 60
         receivers: [RPI]
       - id: 283
         name: AXPERT_PVS1_W
@@ -720,6 +778,7 @@ groups:
         legacy: VAR_AXPERT_PVS1_W
         unit: W
         period_ms: 3000
+        log_s: 10
         receivers: [RPI]
       - id: 284
         name: AXPERT_PVS1_V
@@ -728,6 +787,7 @@ groups:
         unit: V
         legacy_scale: 10
         period_ms: 3000
+        log_s: 60
         receivers: [RPI]
       - id: 285
         name: AXPERT_PVS1_A
@@ -743,6 +803,7 @@ groups:
         legacy: VAR_AXPERT_PVS2_W
         unit: W
         period_ms: 3000
+        log_s: 10
         receivers: [RPI]
       - id: 287
         name: AXPERT_PVS2_V
@@ -751,6 +812,7 @@ groups:
         unit: V
         legacy_scale: 10
         period_ms: 3000
+        log_s: 60
         receivers: [RPI]
       - id: 288
         name: AXPERT_PVS2_A
@@ -766,6 +828,7 @@ groups:
         legacy: VAR_AXPERT_BAT_POWER_W
         unit: W
         period_ms: 5000
+        log_s: 10
         receivers: [RPI]
       - id: 291
         name: AXPERT_BAT_CURRENT_A
@@ -773,6 +836,7 @@ groups:
         legacy: VAR_AXPERT_BAT_CURRENT_A
         unit: A
         period_ms: 5000
+        log_s: 10
         receivers: [RPI]
       - id: 292
         name: AXPERT_SOLAR_W
@@ -780,6 +844,7 @@ groups:
         legacy: VAR_AXPERT_SOLAR_W
         unit: W
         period_ms: 5000
+        log_s: 10
         receivers: [RPI]
       - id: 293
         name: AXPERT_ENERGY_TODAY_WH
@@ -787,6 +852,8 @@ groups:
         legacy: VAR_AXPERT_ENERGY_TODAY_WH
         unit: Wh
         period_ms: 5000
+        log_s: 60
+        agg: delta
         receivers: [RPI]
       - id: 294
         name: AXPERT_LOAD_W
@@ -794,6 +861,7 @@ groups:
         legacy: VAR_AXPERT_LOAD_W
         unit: W
         period_ms: 5000
+        log_s: 10
         receivers: [RPI]
 
   Meters:   # Electricity meters (ELM, by id). ELM writes power to energy id + 10
@@ -808,6 +876,8 @@ groups:
             legacy: VAR_CONS_AC300_WH
             unit: Wh
             period_ms: 3000
+            log_s: 60
+            agg: delta
             on_can: false
             receivers: [RPI]
           - id: 61
@@ -816,6 +886,8 @@ groups:
             legacy: VAR_CONS_AC3KW_WH
             unit: Wh
             period_ms: 3000
+            log_s: 60
+            agg: delta
             on_can: false
             receivers: [RPI]
           - id: 62
@@ -824,6 +896,8 @@ groups:
             legacy: VAR_CONS_AC5KW_WH
             unit: Wh
             period_ms: 3000
+            log_s: 60
+            agg: delta
             on_can: false
             receivers: [RPI]
           - id: 70
@@ -832,6 +906,7 @@ groups:
             legacy: VAR_POW_AC300_W
             unit: W
             period_ms: 3000
+            log_s: 10
             on_can: false
             receivers: [RPI]
           - id: 71
@@ -840,6 +915,7 @@ groups:
             legacy: VAR_POW_AC3KW_W
             unit: W
             period_ms: 3000
+            log_s: 10
             on_can: false
             receivers: [RPI]
           - id: 72
@@ -848,6 +924,7 @@ groups:
             legacy: VAR_POW_AC5KW_W
             unit: W
             period_ms: 3000
+            log_s: 10
             on_can: false
             receivers: [RPI]
       IoboardD:   # kitchen = A + B (APP.c)
@@ -860,6 +937,8 @@ groups:
             legacy: VAR_CONS_FRIDGE_WH
             unit: Wh
             period_ms: 1000
+            log_s: 60
+            agg: delta
             receivers: [RPI]
           - id: 64
             name: CONS_KITCHEN_WH
@@ -867,6 +946,8 @@ groups:
             legacy: VAR_CONS_KITCHEN_WH
             unit: Wh
             period_ms: 1000
+            log_s: 60
+            agg: delta
             receivers: [RPI]
           - id: 65
             name: CONS_WASCHMACHINE_WH
@@ -874,6 +955,8 @@ groups:
             legacy: VAR_CONS_WASCHMACHINE_WH
             unit: Wh
             period_ms: 1000
+            log_s: 60
+            agg: delta
             receivers: [RPI]
           - id: 66
             name: CONS_OTHER_WH
@@ -881,6 +964,8 @@ groups:
             legacy: VAR_CONS_OTHER_WH
             unit: Wh
             period_ms: 1000
+            log_s: 60
+            agg: delta
             receivers: [RPI]
           - id: 67
             name: CONS_TECHM_WH
@@ -888,6 +973,8 @@ groups:
             legacy: VAR_CONS_TECHM_WH
             unit: Wh
             period_ms: 1000
+            log_s: 60
+            agg: delta
             receivers: [RPI]
           - id: 68
             name: CONS_KITCHEN_A_WH
@@ -909,6 +996,7 @@ groups:
             legacy: VAR_POW_FRIDGE_W
             unit: W
             period_ms: 1000
+            log_s: 10
             receivers: [RPI]
           - id: 74
             name: POW_KITCHEN_W
@@ -916,6 +1004,7 @@ groups:
             legacy: VAR_POW_KITCHEN_W
             unit: W
             period_ms: 1000
+            log_s: 10
             receivers: [ELECON, RPI]
           - id: 75
             name: POW_WASCHMACHINE_W
@@ -923,6 +1012,7 @@ groups:
             legacy: VAR_POW_WASCHMACHINE_W
             unit: W
             period_ms: 1000
+            log_s: 10
             receivers: [RPI]
           - id: 76
             name: POW_OTHER_W
@@ -930,6 +1020,7 @@ groups:
             legacy: VAR_POW_OTHER_W
             unit: W
             period_ms: 1000
+            log_s: 10
             receivers: [RPI]
           - id: 77
             name: POW_TECHM_W
@@ -937,6 +1028,7 @@ groups:
             legacy: VAR_POW_TECHM_W
             unit: W
             period_ms: 1000
+            log_s: 10
             receivers: [RPI]
           - id: 78
             name: POW_KITCHEN_A_W
@@ -962,6 +1054,8 @@ groups:
             legacy: VAR_CONS_AXPERT_WH
             unit: Wh
             period_ms: 5000
+            log_s: 60
+            agg: delta
             receivers: [RPI]
           - id: 261
             name: CONS_EVSE_WH
@@ -969,6 +1063,8 @@ groups:
             legacy: VAR_CONS_EVSE_WH
             unit: Wh
             period_ms: 5000
+            log_s: 60
+            agg: delta
             receivers: [RPI]
           - id: 262
             name: CONS_WS_HEATING_WH
@@ -976,6 +1072,8 @@ groups:
             legacy: VAR_CONS_WS_HEATING_WH
             unit: Wh
             period_ms: 5000
+            log_s: 60
+            agg: delta
             receivers: [RPI]
           - id: 270
             name: POW_AXPERT_W
@@ -983,6 +1081,7 @@ groups:
             legacy: VAR_POW_AXPERT_W
             unit: W
             period_ms: 1000
+            log_s: 10
             receivers: [RPI]
           - id: 271
             name: POW_EVSE_W
@@ -990,6 +1089,7 @@ groups:
             legacy: VAR_POW_EVSE_W
             unit: W
             period_ms: 5000
+            log_s: 10
             receivers: [RPI]
           - id: 272
             name: POW_WS_HEATING_W
@@ -997,6 +1097,7 @@ groups:
             legacy: VAR_POW_WS_HEATING_W
             unit: W
             period_ms: 5000
+            log_s: 10
             receivers: [RPI]
 
   ElHeater:   # Electric heater in accumulation tank (TECHM ELHEATER)
@@ -1024,6 +1125,7 @@ groups:
         unit: A
         legacy_scale: 100
         period_ms: 3000
+        log_s: 10
         receivers: [RPI]
       - id: 83
         name: EL_HEATER_CONS_WH
@@ -1031,6 +1133,8 @@ groups:
         legacy: VAR_EL_HEATER_CONS
         unit: Wh
         period_ms: 3000
+        log_s: 60
+        agg: delta
         receivers: [RPI]
 
   Tank:   # Heat energy in the accumulation tank (TECHM TEMPCON)
@@ -1042,6 +1146,7 @@ groups:
         legacy: VAR_HEAT_TOTAL_WH
         unit: Wh
         period_ms: 3000
+        log_s: 60
         receivers: [RPI]
       - id: 86
         name: HEAT_HEATING_WH
@@ -1049,6 +1154,7 @@ groups:
         legacy: VAR_HEAT_HEATING_WH
         unit: Wh
         period_ms: 3000
+        log_s: 60
         receivers: [RPI]
 
   Boiler:   # Boiler (TECHM HEATING)
@@ -1060,6 +1166,7 @@ groups:
         legacy: VAR_BOILER_POWER
         unit: W
         period_ms: 3000
+        log_s: 60
         receivers: [RPI]
       - id: 99
         name: BOILER_HEAT
@@ -1067,6 +1174,8 @@ groups:
         legacy: VAR_BOILER_HEAT
         unit: Wh
         period_ms: 3000
+        log_s: 60
+        agg: delta
         receivers: [RPI]
 
   Water:   # Water meters (TECHM WM)
@@ -1079,6 +1188,7 @@ groups:
         unit: l/min
         legacy_scale: 10
         period_ms: 3000
+        log_s: 60
         receivers: [RPI]
       - id: 91
         name: FLOW_HOT_LPM
@@ -1087,6 +1197,7 @@ groups:
         unit: l/min
         legacy_scale: 10
         period_ms: 3000
+        log_s: 60
         receivers: [RPI]
       - id: 92   # sent in tenths of a liter
         name: CONS_COLD_L
@@ -1095,6 +1206,8 @@ groups:
         unit: l
         legacy_scale: 10
         period_ms: 3000
+        log_s: 60
+        agg: delta
         receivers: [RPI]
       - id: 93   # sent in tenths of a liter
         name: CONS_HOT_L
@@ -1103,6 +1216,8 @@ groups:
         unit: l
         legacy_scale: 10
         period_ms: 3000
+        log_s: 60
+        agg: delta
         receivers: [RPI]
 
   Recu:   # Recuperation unit (RECU)
@@ -1118,6 +1233,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 129
             name: TEMP_RECU_FH_C
@@ -1126,6 +1242,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 130
             name: TEMP_RECU_WH_C
@@ -1134,6 +1251,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 131
             name: TEMP_RECU_WC_C
@@ -1142,6 +1260,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 132
             name: RH_RECU_FH
@@ -1149,6 +1268,7 @@ groups:
             legacy: VAR_RH_RECU_FH
             unit: '%'
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 133
             name: RH_RECU_WASTE
@@ -1156,6 +1276,7 @@ groups:
             legacy: VAR_RH_RECU_WH
             unit: '%'
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 137
             name: CO2_RECU
@@ -1163,6 +1284,7 @@ groups:
             legacy: VAR_CO2_RECU
             unit: ppm
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 138
             name: DP_RECU_F
@@ -1186,6 +1308,7 @@ groups:
             legacy: VAR_RECU_FAN_F
             unit: '%'
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 141
             name: RECU_FAN_WASTE
@@ -1193,6 +1316,7 @@ groups:
             legacy: VAR_RECU_FAN_W
             unit: '%'
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
 
   Temperatures:   # Temperatures (TEMP 1-Wire, by id), one subgroup per producing node
@@ -1208,6 +1332,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 101
             name: TEMP_BOILER_IN_C
@@ -1216,6 +1341,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 102
             name: TEMP_BOILER_OUT_C
@@ -1224,6 +1350,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 103
             name: TEMP_TANK_IN_H_C
@@ -1232,6 +1359,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 104
             name: TEMP_TANK_OUT_H_C
@@ -1240,6 +1368,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 105
             name: TEMP_TANK_1_C
@@ -1248,6 +1377,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 106
             name: TEMP_TANK_2_C
@@ -1256,6 +1386,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 107
             name: TEMP_TANK_3_C
@@ -1264,6 +1395,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 108
             name: TEMP_TANK_4_C
@@ -1272,6 +1404,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 109
             name: TEMP_TANK_5_C
@@ -1280,6 +1413,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 110
             name: TEMP_TANK_6_C
@@ -1288,6 +1422,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 111
             name: TEMP_WALL_IN_C
@@ -1296,6 +1431,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 112
             name: TEMP_WALL_OUT_C
@@ -1304,6 +1440,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 113
             name: TEMP_BOILER_EXHAUST_C
@@ -1312,6 +1449,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 114
             name: TEMP_RAD_H_C
@@ -1320,6 +1458,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 115
             name: TEMP_RAD_C_C
@@ -1328,6 +1467,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 116
             name: TEMP_TANK_IN_C_C
@@ -1336,6 +1476,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 117
             name: TEMP_TANK_OUT_C_C
@@ -1344,6 +1485,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 120
             name: TEMP_TECHM_BOARD_C
@@ -1352,6 +1494,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 1000
+            log_s: 60
             receivers: [RPI]
       IoboardD:
         producer: IOBOARD_D
@@ -1364,6 +1507,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 124
             name: TEMP_DOWNSTAIRS_C
@@ -1372,6 +1516,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RECU, TECHM, RPI]
       IoboardU:
         producer: IOBOARD_U
@@ -1384,6 +1529,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
       Elecon:
         producer: ELECON
@@ -1396,6 +1542,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 125
             name: TEMP_OFFICE_C
@@ -1404,6 +1551,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RPI]
           - id: 126
             name: TEMP_KIDROOM_C
@@ -1412,6 +1560,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RECU, TECHM, RPI]
           - id: 127
             name: TEMP_OUTSIDE_C
@@ -1420,6 +1569,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 3000
+            log_s: 60
             receivers: [RECU, TECHM, RPI]
       EleconD:
         producer: ELECON_D
@@ -1432,6 +1582,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 5000
+            log_s: 60
             receivers: [RPI]
           - id: 145
             name: TEMP_AKUPACK1_C
@@ -1440,6 +1591,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 5000
+            log_s: 60
             receivers: [RPI]
           - id: 146
             name: TEMP_BOARD_ELECON_D_C
@@ -1448,6 +1600,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 5000
+            log_s: 60
             receivers: [RPI]
           - id: 147
             name: TEMP_KOLARNA_C
@@ -1456,6 +1609,7 @@ groups:
             unit: °C
             legacy_scale: 10
             period_ms: 5000
+            log_s: 60
 
   Meteo:   # Meteo (IOBOARD_U METEO)
     producer: IOBOARD_U
@@ -1475,6 +1629,7 @@ groups:
         unit: m/s
         legacy_scale: 10
         period_ms: 1000
+        log_s: 60
         receivers: [RPI]
       - id: 163
         name: METEO_WIND_POW
