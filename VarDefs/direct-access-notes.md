@@ -434,3 +434,63 @@ above that the old int16 sum wrapped. Validity of the sum: always 1 as before (E
 
 v001.04, CRC `0x9BCFBE0B`, 21 warnings (as before). text 63428 → 63000 (−428 B), data 544 → 544,
 bss 42640 → 40872 (−1768 B), before = v001.03 code with `UHA_COMMON` before part A.
+
+## Part B — RECU (node 5), v001.05
+
+Branch `ASW_RECU_NUCLEO` `feature/vars2_direct_access`. First commit: `UhaCommon/` synced with `UHA_COMMON`
+`main` (VARS*, COM, TEMP, ELM, SENSIRION, METEO, generated tables); no `UHA_COMMON` change.
+
+### Inventory (old API, before)
+
+| Where | Call | Class | Now |
+|---|---|---|---|
+| `APP.c:96,98` | `TEMP_AssignSensor(..., VAR_TEMP_RECU_WC / FC, 0)` | by id | `VID_TEMP_RECU_WC_C`, `VID_TEMP_RECU_FC_C` |
+| `APP.c:109-142` | `mSS.VarId_1/2 = VAR_DP/CO2/TEMP/RH_*` (5 Sensirion sensors) | by id | `VID_*` |
+| `APP.c:149-163` | `COM_AddStreamedVariable()` × 11 | TX config | removed (YAML: same 11 variables, 3 s) |
+| `APP.c:49,52` | `VAR_Init()`, `VAR_EnableVars2Read()` | — | removed |
+| `RECON.c:89-91` | `VAR_GetVariable(VAR_TEMP_RECU_FC/FH/WC)` | read (own) | `mpAir->FreshCold_C / FreshHot_C / WasteCold_C` |
+| `RECON.c:92-94` | `VAR_GetVariable(VAR_TEMP_KIDROOM/DOWNSTAIRS/OUTSIDE)` | read (ELECON, IOBOARD_D) | `mpTemps->Elecon.Kidroom_C`, `IoboardD.Downstairs_C`, `Elecon.Outside_C` |
+| `RECON.c:95` | `VAR_GetVariable(VAR_BAT_SOC)` | read (ELECON) | `mpBattery->Soc_pct` |
+| `RECON.c:104-105` | `VAR_GetVariable(VAR_CO2_RECU / VAR_RH_RECU_WH)` | read (own) | `mpAir->Co2_ppm`, `WasteHotRh_pct` |
+| `RECON.c:310,320` | `VAR_SetVariable(VAR_RECU_FAN_F / W)` | produced | `VarSet(&mpFans->Fresh_pct / Waste_pct)` |
+
+Wiring: `RECON_Init(&Vars2.Recu.Fans, &Vars2.Recu.Air, &Vars2.Temperatures, &Vars2.GlobalEnergy.Battery)`
+(produced non-const, read const).
+
+### Invalid inputs
+
+Same as before: if any of FreshCold, FreshHot, WasteCold, Kidroom, Downstairs, Outside, SOC is invalid
+(not received, timed out, sensor error), fans go to IN 0 % / OUT 10 % and RECON returns. CO2 and humidity
+validity is not checked (as before, last values used).
+
+### Constants (old → new)
+
+| Constant / expression | Old | New |
+|---|---|---|
+| `INTERIEROR_COOLING_ENABLE_TEMP` → `_C` | 210 (0.1 degC) | 21.0f degC |
+| `ANTIFREEZE_TEMP_OUT_C10` → `ANTIFREEZE_TEMP_OUT_C` | 40 | 4.0f degC |
+| `ANTIFREEZE_HYST_C10` → `ANTIFREEZE_HYST_C` | 40 | 4.0f degC |
+| summer cooling `outside < indoor + 10` → `+ COOLING_OUTSIDE_MARGIN_C` | 10 (0.1 degC) | 1.0f degC |
+| antifreeze damping `(wc - 40) / 10` (int) | 0.1 degC int division | `(int16_t)(wc - 4.0f)` (whole degC, same result: the subtraction is exact) |
+| `indoor_temp` (summer) | `uint16_t` (negative temps wrapped) | `float` |
+| unchanged | `LOW_SOC_OFF/ECO_THRESHOLD` 30 / 85 %, `RH_ANTI_DRY` 50 %, `RH_ANTI_DRY_HIST` 2 %, CO2 `610` / `600` / `/ 10` ppm, fan limits % | — |
+
+Behaviour differences (edge cases only): SOC is compared unrounded (old: rounded to the integer %, e.g.
+29.6 % was 30 % = not below `LOW_SOC_OFF_THRESHOLD`, now it is); `outside < indoor + 1.0` can differ only when
+the difference is exactly 1.0 degC (float rounding of the tie). All other comparisons give the same result
+for 0.1 degC sensor values.
+
+### Removed dead code
+
+Commented-out `TEMP_AssignSensor(T309/T116, ...)`, `COM_AddStreamedVariable(VAR_CURR_RECU_A)`,
+`ELM_AddMeter(...)` lines in `APP.c`; unused local `fc_temp` in RECON (validity still checked).
+
+### Concurrency
+
+No interrupt writes variables (OW / TEMP results copied in the 100 ms task, Sensirion I2C in the 1 s task,
+CAN RX in the main loop).
+
+### Build
+
+v001.05, CRC `0xE65E9036`, 36 warnings (37 before: unused `fc_temp` gone). text 65236 → 64916 (−320 B),
+data 544 → 544, bss 9552 → 7800 (−1752 B), before = v001.04 code with `UhaCommon` before part A.
