@@ -658,7 +658,7 @@ Sensor values are 0.1 degC steps; SOC from GEMON is truncated to whole % (as bef
 | HEATING | `boilerTemp_C > 77` (pump failure) | `>= 78` | yes |
 | HEATING | `boilerExhaust_C > 125` (low fuel) | `>= 126` | yes |
 | HEATING | `boilerTemp_C > Tank1_C + 2`, `boilerTemp_C > boilerOut_C + 3` (both truncated) | float | can differ within a 1 degC band |
-| HEATING | power `diff_C10 * 92` | `diff_C * BOILER_W_PER_C` (920) | same scale; energy counter no longer adds negative power (old: uint16 wrap added ~65 kWs) |
+| HEATING | power `diff_C10 * 92` | `diff_C * BOILER_W_PER_C` (920) | same scale; energy counter no longer adds negative power (old: uint16 wrap added ~65 kWs), positive power rounded like the old integer |
 | TEMPCON | required room temperatures 215 / 215 / 215 / 195 (0.1 degC) | 21.5 / 21.5 / 21.5 / 19.5 degC | yes |
 | TEMPCON | `RAD_HYST_C10`, `WALL_HYST_C10` = 2 | `RAD_HYST_C`, `WALL_HYST_C` = 0.2f | yes (+ `TEMP_TIE_C` 0.01 for ties with computed thresholds) |
 | TEMPCON | `downReqTemp - 20` (boiler on / off) | `- 2.0f` (± `TEMP_TIE_C`) | yes |
@@ -695,5 +695,26 @@ ELHEATER / HEATING / TEMPCON / BOILER_AIR (1 s) run in the main loop.
 
 ### Build
 
-v001.07, CRC `0x7BFCAFD1`, 19 warnings (28 before: SCOM and unused `invalid` gone). text 60132 → 58828
-(−1304 B), data 544 → 544, bss 10728 → 8384 (−2344 B), before = v001.06 code with `UHA_COMMON` before part A.
+v001.07, CRC `0x370114A8`, 19 warnings (28 before: SCOM and unused `invalid` gone). text 60132 → 58844
+(−1288 B), data 544 → 544, bss 10728 → 8384 (−2344 B), before = v001.06 code with `UHA_COMMON` before part A.
+
+### Review (B.10)
+
+No bug, nothing safety-relevant. PC programs over the input domains (temps −30..130 degC in 0.1, SOC 0..100,
+currents ±150 A in 0.1, solar voltage 0..150 V in 0.01): 0 differences for every translated comparison in
+ELHEATER, HEATING (incl. `boilerDiff_C < 0.95`), TEMPCON (room decisions, valve start) and BOILER_AIR. The two
+var-vs-var HEATING comparisons can only trigger up to 1 degC *earlier* (pump on / pump failure), never later.
+TEMPCON energy: max deviation 21 Wh (avail) / 30 Wh (total) on stratified profiles, threshold flips in 0.03 %
+of profiles near the threshold; the old int16 total overflowed for a very hot tank. Fixed after the review:
+energy counter rounds the power (was 1 W low). Noted:
+- **Heads-up for ELECON part B:** ELHEATER now compares the float values. Today ELECON sends SOC as whole %
+  and currents in 0.1 A (wrappers), so nothing changes. When GEMON publishes exact floats, the SOC thresholds
+  act on the unrounded value (up to 0.5 % earlier / later than the old rounding) and the battery current for
+  `ControlHeaterPower()` is truncated instead of rounded first (e.g. 2.96 A → 2 instead of 3). Decide in ELECON
+  part B (exact values, or keep GEMON's resolution).
+- BOILER_AIR with a negative exhaust temperature (PTC fault, validity not checked in either version): old
+  uint16 wrapped (state stayed `es_AirControl`), new goes to CoolDown / Idle.
+- TEMPCON: in the second the radiators turn off, the valve block can still run once (`mRadOnTime` not reset);
+  with the room > 2.2 degC above target the old uint16 moved the servo the other way. Servo only, pump off.
+- Pre-existing WM nits: `mConsCold/Hot` not `volatile`, `WM_ResetConsupmtions()` races with the ISR `+=`,
+  `18000 / mP2P` can divide by 0, `WM_GetFlowHot()` returns the cold flow.
