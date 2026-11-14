@@ -557,12 +557,9 @@ def _layout(g: Group):
 
 
 def _rule_c_names(c: _Ctx):
-    seen_member: Dict[Tuple, Group] = {}
     for g in _all_groups(c.m):
         if not RE_C_IDENT.match(str(g.key)):
             c.ge(g, None, f"group key '{g.key}' is not a valid C member name")
-        scope = (g.parent.key if g.parent is not None else None, g.key)
-        seen_member.setdefault(scope, g)
         fields: Dict[str, VarDef] = {}
         for d in g.vars:
             if not d.c_field:

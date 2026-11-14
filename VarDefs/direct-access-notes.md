@@ -294,6 +294,9 @@ instead of list order).
 - **TECHM `WM.c` `WM_ExtiCallback()` (from `HAL_GPIO_EXTI_Callback()`, interrupt) calls
   `VAR_SetVariable(VAR_CONS_COLD / VAR_CONS_HOT)`.** Question for Martin (TECHM part B); proposal: the
   callback only counts (`mConsCold += 3`), `WM_Update` in the main loop publishes (it does already).
+- **TECHM `SCOM.c` `HAL_UART_RxCpltCallback()` calls `ProcessMessage()` in the UART interrupt**
+  (`CMD_SET_VAR_VALUE` → `VAR_SetVariable()`, scan list → `VAR_GetVariable()`), found by the reviewer.
+  Goes away with SCOM in TECHM part B (decision 7). IOBOARD_D has the same pattern, but its SCOM never runs.
 
 ### Check builds (CubeIDE GCC 13.3, `make all`, Deployment restored, version not bumped)
 
@@ -330,3 +333,22 @@ walk `groups.<g>.vars` only; 101 of 258 values are now in `subgroups` (`GlobalEn
   a warning, so those 101 values show as unknown ids. It reads the YAML from the UHA_FW working tree, i.e.
   already now while `UHA_COMMON` is on this branch. `VarDefinition.Group` holds the group key (now
   `GlobalEnergy` etc. / the subgroup key): display only.
+
+### Independent review (part A.9)
+
+No wire-format or engine bug. Verified independently: YAML metadata of all 258 values, VarMeta rows and
+VarIdToIndex identical to `main` (except `pVar`), stream periods per node, wrapper equivalence, tick wrap,
+`VARS2_SetGroupValid()` layout checks, shared-module conversions. Findings and what was done:
+
+1. TECHM SCOM UART callback writes variables in the interrupt → noted above (TECHM part B removes SCOM).
+2. RECU does not build until `UhaCommon/` is synced → RECU part B step 1 first (already planned).
+3. IOBOARD_D `APP.c:268-273` sums kitchen A + B as int16 from `VAR_GetVariable()`: above 32767 Wh the old
+   code wrapped, the wrapper now saturates (both wrong, different). IOBOARD_D part B: sum in float.
+4. `VarSet()` only for float → added `VarSetI32()` / `VarSetU32()`.
+5. `VARS2_SetGroupValid()` without a type check → compile-time check that the size is a multiple of 8;
+   comment: only for own `validity: group` groups (per_field groups via `VarSet*()` / `VARS2_SetById()`).
+6. No test across the tick wrap → `test_tick_wrap` in `test_vars2.c` (timeout and TX across 2^32).
+   `test_compat` compares the last frame per id and phase (not counts / order); periods are checked by
+   `test_com` against the YAML and by the per-node script above.
+7. Dead `seen_member` in the validator → removed.
+8. Writes before `COM_Init()` are silently ignored (no node does it today).

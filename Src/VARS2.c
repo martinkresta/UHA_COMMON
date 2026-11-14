@@ -7,7 +7,9 @@
  * See UHA_COMMON/VarDefs/VARS2_spec.md.
  *
  * Hand-written, NOT generated. Uses the generated tables in uha_vars_gen.h/.c.
- * All functions run in the main loop (no interrupt context).
+ * Not interrupt safe: call everything from the main loop. Known exceptions in
+ * unconverted node code (TECHM WM_ExtiCallback, TECHM SCOM UART callback) are
+ * removed in the node's part B (direct-access-notes.md).
  */
 
 #include "VARS2.h"

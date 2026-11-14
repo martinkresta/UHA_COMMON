@@ -218,6 +218,47 @@ static void test_group_valid(void)
 	CHECK(Vars2.ShuntHome.Current_A.value == -3.25f && Vars2.ShuntHome.Current_A.valid == 1);
 	VarSet(&Vars2.ShuntHome.Current_A, 1.0f, 0);
 	CHECK(Vars2.ShuntHome.Current_A.value == 1.0f && Vars2.ShuntHome.Current_A.valid == 0);
+	VarSetI32(&Vars2.HomeEnergy.Storage.BalancedToday, 1, 1);
+	CHECK(Vars2.HomeEnergy.Storage.BalancedToday.value == 1 && Vars2.HomeEnergy.Storage.BalancedToday.valid == 1);
+	VarSetU32(&Vars2.System.NetworkStatus, 0x9Eu, 1);
+	CHECK(Vars2.System.NetworkStatus.value == 0x9Eu && Vars2.System.NetworkStatus.valid == 1);
+}
+
+/* tick wrap (32-bit RxTick, 16-bit TxTick): timeout and TX periods across 2^32 */
+static void test_tick_wrap(void)
+{
+	uint8_t f[8];
+	float v = 1.0f;
+	int i, n45 = 0;
+	uint32_t last = 0, bad = 0;
+
+	Reset(NODEID_TECHM);
+	gTick = 0xFFFFFFFFu - 4000u;
+	VARS2_Init(NODEID_TECHM);
+	Frame(f, VID_MPPT_SOLAR_VOLTAGE_V, &v, 1);          /* timeout 3000 ms */
+	VARS2_ProcessRxFrame(0x184, 8, 0, f);
+	Run(2990);
+	CHECK(Vars2.Mppt.SolarVoltage_V.valid == 1);
+	Run(2000);                                          /* crosses 2^32 */
+	CHECK(Vars2.Mppt.SolarVoltage_V.valid == 0);
+	VARS2_ProcessRxFrame(0x184, 8, 0, f);
+	Run(2000);
+	CHECK(Vars2.Mppt.SolarVoltage_V.valid == 1);
+
+	Reset(NODEID_ELECON);
+	gTick = 0xFFFFFFFFu - 20000u;
+	VARS2_Init(NODEID_ELECON);
+	Run(40000);
+	for (i = 0; i < gTxN; i++)
+	{
+		if ((gTx[i].data[0] | (gTx[i].data[1] << 8)) == VID_MPPT_SOLAR_VOLTAGE_V)   /* period 1000 */
+		{
+			if (n45 > 0 && gTx[i].tick - last < 1000u) bad++;
+			n45++;
+			last = gTx[i].tick;
+		}
+	}
+	CHECK(bad == 0 && n45 >= 39 && n45 <= 40);
 }
 
 static void test_set_by_id(void)
@@ -394,6 +435,7 @@ int main(void)
 	test_rx();
 	test_timeout();
 	test_group_valid();
+	test_tick_wrap();
 	test_set_by_id();
 	test_tx();
 	test_local();

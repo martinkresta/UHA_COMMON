@@ -51,12 +51,27 @@ uint8_t VARS2_ProcessRxFrame(uint16_t cobId, uint8_t dlc, uint8_t rtr, const uin
 /* ---- producer API ---- */
 
 /* sets .valid of every field of a group or a container (all subgroups):
- * VARS2_SetGroupValid(pStorage, valid); */
+ * VARS2_SetGroupValid(pStorage, valid);
+ * Only for this module's own groups with `validity: group`; per_field groups
+ * (Meters, Temperatures, Recu.Air) are written with VarSet*() / VARS2_SetById().
+ * A pointer to a non-group type (size not a multiple of 8) does not compile. */
 void VARS2_SetGroupValidRaw(void* pGroup, size_t size, uint8_t valid);
-#define VARS2_SetGroupValid(pGroup, valid)  VARS2_SetGroupValidRaw((pGroup), sizeof(*(pGroup)), (valid))
+#define VARS2_SetGroupValid(pGroup, valid)  	VARS2_SetGroupValidRaw((pGroup), sizeof(*(pGroup)) + 0u * sizeof(char[(sizeof(*(pGroup)) % VAR_ITEM_SIZE == 0u) ? 1 : -1]), (valid))
 
 /* single field: value + validity */
 static inline void VarSet(sVarF32* pVar, float value, uint8_t valid)
+{
+	pVar->value = value;
+	pVar->valid = valid;
+}
+
+static inline void VarSetI32(sVarI32* pVar, int32_t value, uint8_t valid)   /* int32, enum, bool */
+{
+	pVar->value = value;
+	pVar->valid = valid;
+}
+
+static inline void VarSetU32(sVarU32* pVar, uint32_t value, uint8_t valid)
 {
 	pVar->value = value;
 	pVar->valid = valid;
