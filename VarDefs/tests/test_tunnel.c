@@ -72,7 +72,7 @@ static void SetupLink(void)
 	hdma_usart1_tx.Instance = &gDmaTx;
 	hdma_usart1_rx.Instance = &gDmaRx;
 	gCapN = 0; gBudget = 0; gIrqDisabled = 0; gRspTxOverflow = 0; gRspTxFrames = 0;
-	SCOM_Init(&gUart);   /* resets the TX FIFO via RSP_Init, installs the hook */
+	SCOM_Init(&gUart, &Vars2.System);   /* resets the TX FIFO via RSP_Init, installs the hook */
 }
 
 /* decoded packet */
