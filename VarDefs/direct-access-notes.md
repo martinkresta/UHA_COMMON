@@ -594,3 +594,127 @@ Fixed after the review: the Axpert group was valid from the first second (valid 
 start); now invalid until QPIGS and QPIGS2 were parsed once, as the direct values were before. Count corrected
 (76 variables, the task file said 77). Noted: `huart3` RX branches in `APP.c` are dead; `(uint16_t)(Soc + 0.5f)`
 relies on SOC >= 0 (always true).
+
+## Part B — TECHM (node 3), v001.07
+
+Branch `ASW_TECHM` `feature/vars2_direct_access`. No `UHA_COMMON` change. Martin chose "full float, physical
+units" (2026-11-14): logic in degC / A / %, every comparison translated so that it switches at the same value
+as the old truncated integer, differences listed below.
+
+### Inventory (old API, before)
+
+| Where | Call | Class | Now |
+|---|---|---|---|
+| `APP.c:137-156` | `TEMP_AssignSensor(..., VAR_TEMP_*)` × 18 | by id | `VID_*_C` |
+| `APP.c:160-196` | `COM_AddStreamedVariable()` × 31 | TX config | removed (YAML: same 31 variables / periods) |
+| `APP.c:58,62` | `VAR_Init()`, `VAR_EnableVars2Read()` | — | removed |
+| `APP.c:209` | `VAR_SetVariable(VAR_BAT_VOLTAGE_V10, 520, 1)` | write to ELECON's variable | removed (task) |
+| `APP.c:59`, `scheduler.c:210` | `SCOM_Init()`, `SCOM_Update_10ms()` | SCOM (by id) | `SCOM.c/.h` removed (decision 7) |
+| `ELHEATER.c:102-104,120` | `VAR_SetVariable(VAR_EL_HEATER_*)` | produced | `ElHeater.{State,Load_A,Current_A,ConsToday_Wh}` |
+| `ELHEATER.c:107,140-146` | `VAR_GetVariable(BAT_VOLTAGE, TEMP_TECHM_BOARD, TEMP_TANK_6, BAT_SOC, CHARGING_A10, BAT_CURRENT_A10, MPPT_SOLAR_VOLTAGE_V100)` | read | `mpBattery`, `mpTemps`, `mpMppt` |
+| `HEATING.c:92-99` | `VAR_GetVariable(VAR_TEMP_BOILER/EXHAUST/IN/OUT, TANK_IN_H, TANK_OUT_C, TANK_6, TANK_1)` | read (own) | `mpTemps->*` |
+| `HEATING.c:144-145` | `VAR_SetVariable(VAR_BOILER_POWER / HEAT)` | produced | `Boiler.{Power_W,HeatToday_Wh}` |
+| `TEMPCON.c:109-130` | `VAR_GetVariable(DOWNSTAIRS, WALL_IN, KIDROOM, RAD_H, TANK_1..6, EXHAUST, OUTSIDE)` | read | `mpTemps->{IoboardD,Elecon,Techm}.*` |
+| `TEMPCON.c:144-145` | `VAR_SetVariable(VAR_HEAT_HEATING_WH / TOTAL_WH)` | produced | `Tank.{AvailableEnergy_Wh,TotalEnergy_Wh}` |
+| `BOILER_AIR.c:49,230` | `VAR_GetVariable(VAR_TEMP_BOILER_EXHAUST)` | read (own) | `mpTemps->BoilerExhaust_C` |
+| `PTCTEMP.c:44,48` | `VAR_SetVariable(VAR_TEMP_BOILER_EXHAUST)` | produced (per_field) | `VARS2_SetById(VID_TEMP_BOILER_EXHAUST_C)` |
+| `WM.c:42-130` | `VAR_SetVariable(VAR_FLOW_* / CONS_*)` (CONS from the EXTI interrupt) | produced | `Water.*` in `WM_Update_10ms()` only |
+
+Wiring (`APP.c`): `ELH_Init(&Vars2.ElHeater, &Vars2.Temperatures.Techm, &Vars2.GlobalEnergy.Battery, &Vars2.Mppt)`,
+`WM_Init(&Vars2.Water)`, `HC_Init(&Vars2.Boiler, &Vars2.Temperatures.Techm)`,
+`TC_Init(&Vars2.Tank, &Vars2.Temperatures)`, `BAC_Init(&Vars2.Temperatures.Techm)`.
+
+### Invalid inputs (unchanged)
+
+- ELHEATER: any of board, tank top, SOC, charging current, battery current, solar voltage invalid
+  (not received, timed out, sensor error) → `eElh_InvalidInputs`, all coils off. Battery voltage (energy
+  counter only) not checked, as before.
+- HEATING: any of its 8 temperatures invalid → return without action (state and pump kept), as before.
+- TEMPCON: downstairs, wall in, kidroom, radiator in invalid or downstairs / kidroom == 0 → pumps off; tank,
+  exhaust, outside validity not checked, as before.
+- BOILER_AIR: exhaust validity not checked, as before.
+
+### Constants and comparisons (old → new)
+
+The old values were whole units obtained by truncation (`VAR_GetVariable(...) / 10`) or 0.1 degC integers.
+Sensor values are 0.1 degC steps; SOC from GEMON is truncated to whole % (as before, ELECON still on wrappers).
+
+| Module | Old | New | Same switching point? |
+|---|---|---|---|
+| ELHEATER | `soc >= 99 && charging_A == 0` | `soc >= 99.0f && -1 < charging_A < 1` | yes |
+| ELHEATER | `soc > SOC_DISABLE` (95) | `soc >= SOC_DISABLE + 1` | yes |
+| ELHEATER | `boartTemp_C > MAX_BOARD_TEMP_C` (65) | `>= 66` | yes |
+| ELHEATER | `mTankTemp_C > mReqTankTemp` (90 / 70) | `>= mReqTankTemp + 1` | yes |
+| ELHEATER | `soc > 96 && charging_A <= 1` | `soc >= 97 && charging_A < 2` | yes |
+| ELHEATER | `solarVoltage_V >= 100` | `>= 100.0f` | yes |
+| ELHEATER | `soc <= 96` | `soc < 97` | yes |
+| ELHEATER | `soc < SOC_DISABLE`, comfort `>= 43` / `< 40`, tank `< 55` (comfort, `MIN_UTIL_TEMP_C`) | unchanged | yes |
+| ELHEATER | `ControlHeaterPower(battCurr_A)` (whole A) | `ControlHeaterPower((int16_t)battCurr_A)` | yes |
+| ELHEATER | energy `load * V10 / 10` (int) | `(uint32_t)(load * Voltage_V)` | ±1 W (energy counter only) |
+| HEATING | `boilerTemp_C >= 60`, `TankInHot_C >= 50`, `< 50`, `< 85`, `< 59`, `>= 70`, exhaust `< 110`, `< 150`, `Tank1_C < 70` | unchanged | yes |
+| HEATING | `boilerDiff <= 0` (0.1 degC diff truncated to degC) | `boilerDiff_C < 0.95f` | yes |
+| HEATING | `boilerTemp_C > TEMP_BOILER_OVERHEAT` (86) (2×) | `>= 87` | yes |
+| HEATING | `Tank_C > MAX_TANK_TEMP_C` (95) | `>= 96` | yes |
+| HEATING | `boilerTemp_C > 77` (pump failure) | `>= 78` | yes |
+| HEATING | `boilerExhaust_C > 125` (low fuel) | `>= 126` | yes |
+| HEATING | `boilerTemp_C > Tank1_C + 2`, `boilerTemp_C > boilerOut_C + 3` (both truncated) | float | can differ within a 1 degC band |
+| HEATING | power `diff_C10 * 92` | `diff_C * BOILER_W_PER_C` (920) | same scale; energy counter no longer adds negative power (old: uint16 wrap added ~65 kWs), positive power rounded like the old integer |
+| TEMPCON | required room temperatures 215 / 215 / 215 / 195 (0.1 degC) | 21.5 / 21.5 / 21.5 / 19.5 degC | yes |
+| TEMPCON | `RAD_HYST_C10`, `WALL_HYST_C10` = 2 | `RAD_HYST_C`, `WALL_HYST_C` = 0.2f | yes (+ `TEMP_TIE_C` 0.01 for ties with computed thresholds) |
+| TEMPCON | `downReqTemp - 20` (boiler on / off) | `- 2.0f` (± `TEMP_TIE_C`) | yes |
+| TEMPCON | `TANK_BASE_TEMP` 300, total base 400 | `TANK_BASE_TEMP_C` 30.0f, `TANK_TOTAL_BASE_TEMP_C` 40.0f | energy formula exact now (old: `/2` and `*k/10` truncations): Available / Total energy differ by up to ~25 Wh, so `<= 0`, `>= MIN_ENERGY_RAD` (300), `>= MIN_ENERGY_WALL` (800) can switch up to ~25 Wh earlier / later |
+| TEMPCON | valve start `135 - tank4_C10/10`, `130 - ...` | `135 - (int16_t)tank4_C` | yes |
+| TEMPCON | required water 330 / 600 / 380 / 480 → 500, `* 15`, `* 10` (0.1 degC) | 33 / 60 / 38 / 48 → 50 degC, `* 15`, `* 10` per degC | same; outside compensation `-out10/2` (int) → `-out/2` (float, ±0.05 degC); old `uint16_t` wrapped when the room was > 2.2 degC above target (then capped at 60 degC), float does not wrap (radiators are off in that state) |
+| TEMPCON | `WATER_HYST` 10 | `WATER_HYST_C` 1.0f (± `TEMP_TIE_C`) | yes |
+| BOILER_AIR | `mExhaustTemp_C > BAC_DEF_HEATUP_TEMP` (200) | `>= 201` | yes |
+| BOILER_AIR | `> BAC_DEF_COOLDOWN_LEAVE_TEMP` (160) | `>= 161` | yes |
+| BOILER_AIR | `< 140`, `< 80`, `< 60` | unchanged | yes |
+| BOILER_AIR | `uint16_t mExhaustTemp_C` (negative wrapped to > 6000) | `float` | differs only for a negative exhaust temperature (PTC error) |
+| BOILER_AIR | PID input `/ 10.0` | `BoilerExhaust_C.value` | identical float |
+
+### Changes visible on the bus / web
+
+- `BAT_VOLTAGE` is no longer written at start (was 52.0 V valid until ELECON's value arrived; the write was
+  local only). The heater energy counter uses 0 V until received.
+- `CONS_COLD_L` / `CONS_HOT_L`: published from the main loop, exact float liters (old: int16 of dl, wrapped
+  above 3276.7 l); water values valid (0) from start (old: invalid until the first pulse).
+- `HEAT_*_WH`, `BOILER_POWER_W`: exact floats (see energy / power rows).
+
+### Removed dead code
+
+`SCOM.c/.h` (+ include / calls in `APP.c`, `scheduler.c`; the generated `Debug/Core/Src/subdir.mk` was edited
+for the headless build, CubeIDE regenerates it), `ControlLogic()` prototype and its commented-out body in
+`BOILER_AIR.c`, commented-out invalid-input state code in `HEATING.c`, unused `RAD_WATER_TEMP_C10` /
+`WALL_WATER_TEMP_C10`.
+
+### Concurrency
+
+`WM_ExtiCallback()` (EXTI) now only counts (`mConsCold += 3`); `Vars2.Water` is written in `WM_Update_10ms()`.
+The SCOM UART callback (`ProcessMessage()` in the interrupt) is gone with SCOM. TEMP / PTCTEMP (100 ms),
+ELHEATER / HEATING / TEMPCON / BOILER_AIR (1 s) run in the main loop.
+
+### Build
+
+v001.07, CRC `0x370114A8`, 19 warnings (28 before: SCOM and unused `invalid` gone). text 60132 → 58844
+(−1288 B), data 544 → 544, bss 10728 → 8384 (−2344 B), before = v001.06 code with `UHA_COMMON` before part A.
+
+### Review (B.10)
+
+No bug, nothing safety-relevant. PC programs over the input domains (temps −30..130 degC in 0.1, SOC 0..100,
+currents ±150 A in 0.1, solar voltage 0..150 V in 0.01): 0 differences for every translated comparison in
+ELHEATER, HEATING (incl. `boilerDiff_C < 0.95`), TEMPCON (room decisions, valve start) and BOILER_AIR. The two
+var-vs-var HEATING comparisons can only trigger up to 1 degC *earlier* (pump on / pump failure), never later.
+TEMPCON energy: max deviation 21 Wh (avail) / 30 Wh (total) on stratified profiles, threshold flips in 0.03 %
+of profiles near the threshold; the old int16 total overflowed for a very hot tank. Fixed after the review:
+energy counter rounds the power (was 1 W low). Noted:
+- **Heads-up for ELECON part B:** ELHEATER now compares the float values. Today ELECON sends SOC as whole %
+  and currents in 0.1 A (wrappers), so nothing changes. When GEMON publishes exact floats, the SOC thresholds
+  act on the unrounded value (up to 0.5 % earlier / later than the old rounding) and the battery current for
+  `ControlHeaterPower()` is truncated instead of rounded first (e.g. 2.96 A → 2 instead of 3). Decide in ELECON
+  part B (exact values, or keep GEMON's resolution).
+- BOILER_AIR with a negative exhaust temperature (PTC fault, validity not checked in either version): old
+  uint16 wrapped (state stayed `es_AirControl`), new goes to CoolDown / Idle.
+- TEMPCON: in the second the radiators turn off, the valve block can still run once (`mRadOnTime` not reset);
+  with the room > 2.2 degC above target the old uint16 moved the servo the other way. Servo only, pump off.
+- Pre-existing WM nits: `mConsCold/Hot` not `volatile`, `WM_ResetConsupmtions()` races with the ISR `+=`,
+  `18000 / mP2P` can divide by 0, `WM_GetFlowHot()` returns the cold flow.
