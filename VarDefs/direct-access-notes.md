@@ -718,3 +718,98 @@ energy counter rounds the power (was 1 W low). Noted:
   with the room > 2.2 degC above target the old uint16 moved the servo the other way. Servo only, pump off.
 - Pre-existing WM nits: `mConsCold/Hot` not `volatile`, `WM_ResetConsupmtions()` races with the ISR `+=`,
   `18000 / mP2P` can divide by 0, `WM_GetFlowHot()` returns the cold flow.
+
+## Part B — ELECON (node 4), v001.17
+
+Branches: `ASW_ELECON` `feature/vars2_direct_access`, `UHA_COMMON` `feature/vars2_direct_access_elecon` (`BMS.c`,
+`test_tunnel.c`). Done in one session (energy and the rest together).
+
+### Inventory (old API, before)
+
+| Where | Call | Class | Now |
+|---|---|---|---|
+| `APP.c:105-108` | `TEMP_AssignSensor(..., VAR_TEMP_ELECON_BOARD / OFFICE / KIDROOM / OUTSIDE)` | by id | `VID_*_C` |
+| `APP.c:129-131` | `ELM_AddMeter(..., VAR_CONS_AC300 / AC3KW / AC5KW_WH)` | by id | `VID_*` (power id + 10) |
+| `APP.c:114-124` | `COM_AddStreamedVariable()` × 10 | TX config | removed (YAML: same 10 on_can variables / periods) |
+| `APP.c:55,59` | `VAR_Init()`, `VAR_EnableVars2Read()` | — | removed |
+| `APP.c:285,293` | `VAR_GetVariable(VAR_MPPT_SOLAR_VOLTAGE_V100)` (exterior light) | read (own) | `mpMppt->SolarVoltage_V` |
+| `AC.c:97` | `VAR_GetVariable(VAR_POW_KITCHEN_W)` | read (IOBOARD_D) | `mpKitchen->KitchenPower_W` |
+| `GEMON.c:53-114` | `VAR_GetVariable(STRG1/2_*, LLOAD1/2_*, LPV1/2_*)` × 22 | read (own + ELECON_D) | `mpHome->*`, `mpWorkshop->*` |
+| `GEMON.c:146-158` | `VAR_SetVariable(BAT_*, SOLAR_*, LOAD_*, CONS_TODAY)` × 10 | produced | `GlobalEnergy.{Battery,Solar,Load}` |
+| `LEMON.c:93-94` | `VAR_GetVariable(VAR_MPPT_SOLAR_POWER_W / BAT_CURRENT_A10)` | read (own) | `mpMppt->SolarPower_W / BatCurrent_A` |
+| `LEMON.c:232-243` | `VAR_SetVariable(VAR_STRG1_* / LLOAD1_* / LPV1_*)` × 12 | produced | `HomeEnergy.{Storage,Load,Pv}` |
+| `LEMON.c:250-333` | `VAR_SetVariable(VAR_BMS3_* / BMS2_*)` × 74 | produced | `BMS.c` `Publish()` → `PackHome80Ah` / `PackHome220Ah` |
+| `MPPT.c:120-239` | `VAR_SetVariable(VAR_MPPT_*, VAR_CHARGING_A10)` × 13 | produced | `VarSet(&mpVars->*)` |
+| `SHUNT.c:120,124` | `VAR_SetVariable(VAR_SHUNT_PCK2_CURRENT_A100)` | produced | `VarSet(&mpVars->Current_A)` |
+| `SCOM.c:72` | `VAR_SetVariable(VAR_NETWORK_STATUS)` | produced | `VarSetU32(&mpSystem->NetworkStatus)` |
+| `SCOM.c:157` | `CMD_SET_VAR_VALUE` → `VAR_SetVariable(any id)` | by id | removed (decision 7) |
+
+Wiring (`APP.c`): `SCOM_Init(&huart1, &Vars2.System)`, `AC_Init(&Vars2.Meters.IoboardD)`,
+`MPPT_Init(&hlpuart1, &Vars2.Mppt)`, `SHUNT_Init(&hspi1, &Vars2.ShuntHome)`,
+`LEMON_Init(&huart3, &huart2, &Vars2.HomeEnergy, &Vars2.PackHome80Ah, &Vars2.PackHome220Ah, &Vars2.Mppt)`,
+`GEMON_Init(&Vars2.GlobalEnergy, &Vars2.HomeEnergy, &Vars2.WorkshopEnergy)`; `APP.c` const pointer to `Mppt`.
+
+### Validity
+
+- `PackHome80Ah` / `PackHome220Ah`: `BMS.c` `Publish()`, valid while a valid frame arrived within the last
+  `BMS_TIMEOUT_S` = 5 updates (1 s each); otherwise last values kept, invalid. `Active` and `BMS_Is*Enabled()`
+  are not changed, so LEMON's control logic behaves exactly as before.
+- `HomeEnergy`: always valid (as before).
+- `GlobalEnergy`: Battery / Solar / Load from all their inputs (both storages) valid, as v001.15; load current
+  with the load validity (decision 3), last value kept while the battery is invalid.
+- `Mppt`: each field valid once its register was read (as before, `VarSet()` per field).
+- `ShuntHome`, `System`: as before.
+
+### Constants (old → new)
+
+| Where | Old | New | Same result? |
+|---|---|---|---|
+| exterior light on / off | `MPPT_SOLAR_VOLTAGE_V100 < 1000` / `> 2000` | `SolarVoltage_V < 10.0f` / `> 20.0f` | yes (own MPPT value = register / 100, exact steps) |
+| AC 300 W on (kitchen) | `50 < POW_KITCHEN_W` (int) | `50.0f < KitchenPower_W` | yes (IOBOARD_D sends whole W) |
+| GEMON battery voltage | `(V10 + V10) / 20.0` | `(V + V) / 2` | exact values instead of 0.1 V |
+| GEMON currents | `A10 / 10.0` | `A` | exact |
+| GEMON load current | `(int16_t)(100 * P / V)` (A100) | `P / V` (A) | exact |
+| GEMON solar / consumption today | `/10` (10 Wh) | Wh | exact |
+| MPPT register scaling | raw u16 (A10, V100, 10 Wh), `u32 / 100` (W) | `/10.0f`, `/100.0f`, `*10.0f`, `/100.0f` | same values; temperature now signed and 0.01 degC (was unsigned, truncated to degC) |
+| BMS publishing | `mV / 100` (V10), `mA / 100` (A10) | `mV / 1000.0f` (V), `mA / 1000.0f` (A) | exact (was truncated to 0.1) |
+| `BMS_TIMEOUT_S` | — (never invalid) | 5 updates | new |
+
+### Effect on the receivers of `GlobalEnergy` (exact floats instead of truncated values)
+
+| Receiver | Uses | Effect |
+|---|---|---|
+| TECHM (v001.07) | SOC thresholds, battery current `(int16_t)`, voltage (energy) | none: its comparisons were translated for truncated values, and `trunc(x) == trunc(trunc(10x)/10)` |
+| RECU (v001.05) | SOC `< 30`, `< 85` | none: `trunc(s) < 30` ⇔ `s < 30` |
+| ELECON_D (v001.21) | global SOC `(uint16_t)(Soc_pct + 0.5f)` (load control on / off thresholds) | **rounds instead of the old truncation: switches up to 0.5 % SOC earlier** |
+| RPi / web | all | exact values (uha.json still converts with `legacy_scale`) |
+
+Proposal: ELECON_D follow-up (one line, v001.22): `uint16_t globalSoc = (uint16_t)mpGlobalBattery->Soc_pct.value;`
+(truncation = behaviour before direct access).
+
+### Findings to report (not changed)
+
+1. `HomeEnergy` is always valid: a silent BMS does not invalidate the house storage (LEMON integrates the shunt).
+2. LEMON's control logic uses the last BMS data when a BMS goes silent (`Active` is never cleared;
+   `BMS_IsChargingEnabled()` returns 1 only before the first frame). Only the published pack is now invalid.
+3. MPPT never invalid when the Victron goes silent.
+4. Exterior light and AC kitchen trigger ignore validity (frozen value = state kept).
+5. GEMON balancing inputs (`OptCharging_A`, `BalancedToday`) ignore validity, as before.
+6. `MPPT_REG_MAX_CHARGING_CURRENT`: the register comment says 0.01 A, but it is published as 0.1 A
+   (`legacy_scale` 10): the value may be 10x too high (pre-existing, check against the Victron).
+
+### Removed dead code
+
+`CMD_SET_VAR_VALUE` define and case, unused `invalid` locals (`AC.c`, `MPPT.c`, `LEMON.c`), the BMS publishing in
+LEMON (moved to the driver).
+
+### Concurrency
+
+UART callbacks only set flags (`MPPT_UartRxCallback()`, `LEMON_UartRxCallback()` → `BMS_UartRxCallback()`;
+`SCOM_Uart*Callback()` are traps), EXTI → `ELM_ExtiCallback()` (counting), SPI → shunt chip select.
+`Vars2` is written in the 10 ms (SCOM), 100 ms (TEMP, MPPT, SHUNT) and 1 s (ELM, LEMON incl. BMS, GEMON) tasks.
+
+### Build
+
+v001.17, CRC `0xAFB6D7E8`, 29 warnings (30 before). text 90896 → 89040 (−1856 B), data 544 → 544,
+bss 23544 → 21312 (−2232 B), before = v001.16 code with `UHA_COMMON` before part A. TECHM, IOBOARD_D,
+IOBOARD_U and ELECON_D (they compile `BMS.c` / its header) built against the branch: unchanged warnings.
