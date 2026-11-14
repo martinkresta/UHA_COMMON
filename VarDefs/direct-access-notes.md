@@ -396,3 +396,41 @@ warnings as before.
 
 v001.04, CRC `0xCAADF741`, 21 warnings (as before, all in older code). text 46512 → 47308 (+796 B),
 data 544 → 544, bss 42808 → 41032 (−1776 B), before = v001.03 code with `UHA_COMMON` before part A.
+
+## Part B — IOBOARD_D (node 1), v001.04
+
+Branch `ASW_IOBOARD_D` `feature/vars2_direct_access`. No `UHA_COMMON` code change (ELM / TEMP by id since part A).
+
+### Inventory (old API, before)
+
+| Where | Call | Class | Now |
+|---|---|---|---|
+| `APP.c:167-168` | `TEMP_AssignSensor(..., VAR_TEMP_IOBOARD_D / VAR_TEMP_DOWNSTAIRS, 0)` | by id | `VID_TEMP_IOBOARD_D_C`, `VID_TEMP_DOWNSTAIRS_C` |
+| `APP.c:190-195` | `ELM_AddMeter(..., VAR_CONS_*_WH)` × 6 | by id | `VID_CONS_*_WH` (power at id + 10) |
+| `APP.c:172-185` | `COM_AddStreamedVariable()` × 12 | TX config | removed (YAML: same 12 variables, same periods) |
+| `APP.c:56` | `VAR_Init()` | — | removed |
+| `APP.c:268-271` | `VAR_GetVariable(VAR_CONS/POW_KITCHEN_A/B)` | read (own) | `mpMeters->Kitchen{A,B}{Cons_Wh,Power_W}.value` |
+| `APP.c:272-273` | `VAR_SetVariable(VAR_CONS/POW_KITCHEN, sum, 1)` | produced | `VarSet(&mpMeters->Kitchen*, A + B, 1)` |
+| `SCOM.c` | by id, `NETWORK_STATUS` | by id | file removed (excluded from the build, never initialised) |
+
+`APP.c` keeps one pointer `mpMeters = &Vars2.Meters.IoboardD` (its own group; ELM fills the other fields by id).
+Reads of other nodes' variables: none.
+
+### Constants
+
+None changed (no threshold on a variable). Kitchen sum: float instead of int16; identical below 32768 Wh / W,
+above that the old int16 sum wrapped. Validity of the sum: always 1 as before (ELM meters are always valid).
+
+### Removed dead code
+
+`SCOM.c`, `SCOM.h` (+ include / commented calls in `APP.c`, `scheduler.c`); `.cproject` exclusion entry left.
+
+### Concurrency
+
+`ELM_ExtiCallback()` (EXTI interrupt) writes only ELM's own meter state; `Vars2` is written in
+`ELM_Update_1s()` and `APP_Update_1s()` (1 s task, main loop, in this order).
+
+### Build
+
+v001.04, CRC `0x9BCFBE0B`, 21 warnings (as before). text 63428 → 63000 (−428 B), data 544 → 544,
+bss 42640 → 40872 (−1768 B), before = v001.03 code with `UHA_COMMON` before part A.
