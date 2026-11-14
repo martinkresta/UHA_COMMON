@@ -1,35 +1,61 @@
 /*
  * VARS2.c
  *
- * VARS2 shared variable protocol: TX of own variables (0x180+node, value from
- * Vars[]), RX into Vars2. See UHA_COMMON/VarDefs/VARS2_spec.md.
+ * VARS2 shared variable protocol: TX of this node's variables from Vars2 by
+ * their YAML period (CAN 0x180+node, tunnel callback for on_can: false),
+ * RX of the other nodes' variables into Vars2, receive timeout.
+ * See UHA_COMMON/VarDefs/VARS2_spec.md.
  *
  * Hand-written, NOT generated. Uses the generated tables in uha_vars_gen.h/.c.
+ * All functions run in the main loop (no interrupt context).
  */
 
 #include "VARS2.h"
-#include "VARS.h"   /* legacy VAR_GetVariable(), INVALID_FLAG */
 #include "MCAN.h"   /* MCAN_SendFrame() */
 #include <string.h>
 
 #define VARS2_COBID_BASE  0x180u
 #define VARS2_FLAG_VALID  0x01u  /* spec sec.2, byte 6 bit0 */
 
+#define VARS2_CAN_MAX_PER_CALL    1u   /* like the old COM stream: 1 frame per 10 ms */
+#define VARS2_LOCAL_MAX_PER_CALL  4u   /* bounds the tunnel burst per 10 ms tick */
+
+/* protocol state only; value + valid live in Vars2 */
 typedef struct
 {
-	uint8_t  Valid;
-	uint8_t  Received;   /* 1 after the first frame received by VARS2_ProcessFrame() */
-	uint32_t RxTick;
+	uint32_t RxTick;   /* received variables: last frame */
+	uint16_t TxTick;   /* own variables: low 16 bits of the last send tick */
 } sVars2State;
 
 static sVars2State mState[VARS_COUNT];  /* indexed like VarMeta[]/VarIdToIndex[] */
 static uint8_t mThisNodeId;
 static VARS2_FrameHook mFrameHook;   /* NULL = no hook (all nodes except ELECON) */
+static uint8_t mTxInit;              /* first VARS2_Update_10ms() spreads the CAN sends */
+static uint8_t mLocalInit;           /* same for VARS2_UpdateLocal_10ms() */
+static uint16_t mTxNext;             /* round robin start for the CAN TX scan */
 
-/* ELECON-local (not on CAN) publishing: low 16 bits of last send tick per row */
-#define VARS2_LOCAL_MAX_PER_CALL  4u   /* bounds the burst per 10 ms tick */
-static uint16_t mLocalTick[VARS_COUNT];
-static uint8_t  mLocalInit;
+
+static uint8_t* ValidOf(const sVarMeta* meta)
+{
+	return (uint8_t*)meta->pVar + VAR_VALID_OFFSET;
+}
+
+static const sVarMeta* MetaOf(uint16_t id)
+{
+	uint16_t idx;
+
+	if (id > VAR_MAX_ID)
+	{
+		return NULL;
+	}
+	idx = VarIdToIndex[id];
+	return (idx == VAR_IDX_UNKNOWN) ? NULL : &VarMeta[idx];
+}
+
+static uint8_t IsOwn(const sVarMeta* meta)
+{
+	return meta->Producer == mThisNodeId;
+}
 
 
 void VARS2_Init(uint8_t thisNodeId)
@@ -37,96 +63,139 @@ void VARS2_Init(uint8_t thisNodeId)
 	uint16_t i;
 	uint32_t now = HAL_GetTick();
 
-	mThisNodeId = thisNodeId;
+	mThisNodeId = thisNodeId;   /* the frame hook is kept: ELECON installs it in SCOM_Init() before COM_Init() */
+	mTxInit = 0;
+	mLocalInit = 0;
+	mTxNext = 0;
+	memset(&Vars2, 0, sizeof Vars2);   /* all values 0, all invalid: nothing produced / received yet */
 	for (i = 0; i < VARS_COUNT; i++)
 	{
-		mState[i].Valid = 1;   /* default after start = valid, spec sec.4 */
-		mState[i].Received = 0;
 		mState[i].RxTick = now;
+		mState[i].TxTick = (uint16_t)now;
 	}
 }
 
 
-void VARS2_ProcessFrame(const uint8_t* data)
+/* frame of row idx from Vars2: id LE, value 4 B LE, flags, seq */
+static void BuildFrame(uint16_t idx, uint8_t* data)
 {
-	uint16_t id = (uint16_t)data[0] | ((uint16_t)data[1] << 8);
-	uint16_t idx;
-
-	if (id > VAR_MAX_ID)
-	{
-		return;   /* unknown id */
-	}
-	idx = VarIdToIndex[id];
-	if (idx == VAR_IDX_UNKNOWN)
-	{
-		return;
-	}
-
-	memcpy(VarMeta[idx].pValue, &data[2], 4);  /* raw 4B copy, Cortex-M is LE like the frame */
-	mState[idx].Valid = (data[6] & VARS2_FLAG_VALID) ? 1 : 0;
-	mState[idx].Received = 1;
-	mState[idx].RxTick = HAL_GetTick();
-}
-
-
-/* Converts the old Vars[] value (+ validity) of row idx into a VARS2 frame,
- * stores the converted value into Vars2 and refreshes the producer's own
- * state (so VARS2_IsValid() of an own value does not time out). */
-static void BuildLegacyFrame(uint16_t idx, uint16_t legacyVarId, uint8_t* data)
-{
-	uint16_t invalid = 0;
-	int16_t raw;
-	uint8_t valid;
-	float f32;
-	int32_t i32;
 	const sVarMeta* meta = &VarMeta[idx];
-
-	raw = VAR_GetVariableLegacy(legacyVarId, &invalid);   /* transmission always publishes Vars[] */
-	valid = (invalid == INVALID_FLAG) ? 0 : 1;
-
-	if (meta->Type == VT_FLOAT)
-	{
-		f32 = (float)raw / meta->LegacyScale;
-		memcpy(meta->pValue, &f32, 4);
-	}
-	else   /* VT_INT32 / VT_UINT32 / VT_BOOL / VT_ENUM: integer value of raw */
-	{
-		i32 = (int32_t)raw;
-		memcpy(meta->pValue, &i32, 4);
-	}
-
-	mState[idx].Valid = valid;
-	mState[idx].RxTick = HAL_GetTick();
 
 	data[0] = (uint8_t)(meta->Id & 0xFFu);
 	data[1] = (uint8_t)(meta->Id >> 8);
-	memcpy(&data[2], meta->pValue, 4);
-	data[6] = valid ? VARS2_FLAG_VALID : 0;
+	memcpy(&data[2], meta->pVar, 4);   /* value at offset 0, Cortex-M is LE like the frame */
+	data[6] = *ValidOf(meta) ? VARS2_FLAG_VALID : 0u;
 	data[7] = 0;   /* seq, reserved */
 }
 
-
-void VARS2_SendLegacy(uint16_t legacyVarId)
+static void SendOnCan(uint16_t idx)
 {
 	uint8_t data[8];
-	uint16_t idx;
 
-	if (legacyVarId > VAR_MAX_ID)
-	{
-		return;   /* no VARS2 definition yet */
-	}
-	idx = VarIdToIndex[legacyVarId];   /* legacy id == VARS2 id in this migration step */
-	if (idx == VAR_IDX_UNKNOWN)
-	{
-		return;
-	}
-
-	BuildLegacyFrame(idx, legacyVarId, data);
-
+	BuildFrame(idx, data);
 	MCAN_SendFrame(VARS2_COBID_BASE + mThisNodeId, data, 8);
 	if (mFrameHook != NULL)
 	{
 		mFrameHook(VARS2_COBID_BASE + mThisNodeId, data);
+	}
+}
+
+/* own variable of the given kind (onCan = 1: on CAN, 0: tunnel only) with a period */
+static uint8_t IsOwnTx(const sVarMeta* meta, uint8_t onCan)
+{
+	return IsOwn(meta) && meta->PeriodMs != 0 && (((meta->Flags & VMF_ON_CAN) ? 1u : 0u) == onCan);
+}
+
+/* first call: k-th row of the kind is due k*10 ms from now (spreads the first sends) */
+static void SpreadFirstSends(uint8_t onCan, uint32_t now)
+{
+	uint16_t idx;
+	uint16_t k = 0;
+
+	for (idx = 0; idx < VARS_COUNT; idx++)
+	{
+		const sVarMeta* meta = &VarMeta[idx];
+
+		if (IsOwnTx(meta, onCan))
+		{
+			mState[idx].TxTick = (uint16_t)(now - meta->PeriodMs + (uint16_t)((k * 10u) % meta->PeriodMs));
+			k++;
+		}
+	}
+}
+
+static uint8_t IsDue(uint16_t idx, uint32_t now)
+{
+	return (uint16_t)((uint16_t)now - mState[idx].TxTick) >= VarMeta[idx].PeriodMs;
+}
+
+
+void VARS2_Update_10ms(void)
+{
+	uint16_t n;
+	uint16_t idx;
+	uint8_t sent = 0;
+	uint32_t now = HAL_GetTick();
+
+	/* receive timeout */
+	for (idx = 0; idx < VARS_COUNT; idx++)
+	{
+		const sVarMeta* meta = &VarMeta[idx];
+
+		if (!IsOwn(meta) && *ValidOf(meta) && (now - mState[idx].RxTick) > meta->TimeoutMs)
+		{
+			*ValidOf(meta) = 0;
+		}
+	}
+
+	/* TX of own on_can variables, round robin so that no row starves */
+	if (mTxInit == 0)
+	{
+		SpreadFirstSends(1, now);
+		mTxInit = 1;
+		return;
+	}
+	for (n = 0; n < VARS_COUNT && sent < VARS2_CAN_MAX_PER_CALL; n++)
+	{
+		idx = (uint16_t)((mTxNext + n) % VARS_COUNT);
+		if (IsOwnTx(&VarMeta[idx], 1) && IsDue(idx, now))
+		{
+			SendOnCan(idx);
+			mState[idx].TxTick = (uint16_t)now;
+			mTxNext = (uint16_t)((idx + 1u) % VARS_COUNT);
+			sent++;
+		}
+	}
+}
+
+
+void VARS2_UpdateLocal_10ms(VARS2_FrameHook cb)
+{
+	uint16_t idx;
+	uint8_t sent = 0;
+	uint32_t now = HAL_GetTick();
+	uint8_t data[8];
+
+	if (cb == NULL)
+	{
+		return;
+	}
+	if (mLocalInit == 0)
+	{
+		SpreadFirstSends(0, now);
+		mLocalInit = 1;
+		return;
+	}
+
+	for (idx = 0; idx < VARS_COUNT && sent < VARS2_LOCAL_MAX_PER_CALL; idx++)
+	{
+		if (IsOwnTx(&VarMeta[idx], 0) && IsDue(idx, now))
+		{
+			BuildFrame(idx, data);
+			mState[idx].TxTick = (uint16_t)now;
+			cb(VARS2_COBID_BASE + mThisNodeId, data);
+			sent++;
+		}
 	}
 }
 
@@ -139,11 +208,21 @@ void VARS2_SetFrameHook(VARS2_FrameHook hook)
 
 uint8_t VARS2_ProcessRxFrame(uint16_t cobId, uint8_t dlc, uint8_t rtr, const uint8_t* data)
 {
+	const sVarMeta* meta;
+
 	if (dlc != 8 || rtr)
 	{
 		return 0;   /* malformed: dropped, neither stored nor forwarded */
 	}
-	VARS2_ProcessFrame(data);
+
+	meta = MetaOf((uint16_t)data[0] | ((uint16_t)data[1] << 8));
+	if (meta != NULL && !IsOwn(meta))   /* unknown ids ignored; own values never overwritten */
+	{
+		memcpy(meta->pVar, &data[2], 4);
+		*ValidOf(meta) = (data[6] & VARS2_FLAG_VALID) ? 1u : 0u;
+		mState[meta - VarMeta].RxTick = HAL_GetTick();
+	}
+
 	if (mFrameHook != NULL)
 	{
 		mFrameHook(cobId, data);
@@ -152,131 +231,120 @@ uint8_t VARS2_ProcessRxFrame(uint16_t cobId, uint8_t dlc, uint8_t rtr, const uin
 }
 
 
-void VARS2_UpdateLocal_10ms(VARS2_FrameHook cb)
+void VARS2_SetGroupValidRaw(void* pGroup, size_t size, uint8_t valid)
 {
-	uint16_t idx;
-	uint16_t k = 0;
-	uint8_t sent = 0;
-	uint32_t now = HAL_GetTick();
-	uint8_t data[8];
+	uint8_t* p = (uint8_t*)pGroup;
+	size_t i;
 
-	if (cb == NULL)
+	for (i = 0; i + VAR_ITEM_SIZE <= size; i += VAR_ITEM_SIZE)
 	{
-		return;
+		p[i + VAR_VALID_OFFSET] = valid ? 1u : 0u;
 	}
-
-	for (idx = 0; idx < VARS_COUNT; idx++)
-	{
-		const sVarMeta* meta = &VarMeta[idx];
-
-		if (meta->Producer != mThisNodeId || (meta->Flags & VMF_ON_CAN) ||
-		    meta->PeriodMs == 0 || meta->LegacyId == VAR_LEGACY_NONE)
-		{
-			continue;
-		}
-
-		if (mLocalInit == 0)
-		{
-			/* first call: spread the first sends, k-th row due k*10 ms from now */
-			mLocalTick[idx] = (uint16_t)(now - meta->PeriodMs + (uint16_t)((k * 10u) % meta->PeriodMs));
-			k++;
-			continue;
-		}
-
-		if ((uint16_t)((uint16_t)now - mLocalTick[idx]) >= meta->PeriodMs && sent < VARS2_LOCAL_MAX_PER_CALL)
-		{
-			BuildLegacyFrame(idx, meta->LegacyId, data);
-			mLocalTick[idx] = (uint16_t)now;
-			cb(VARS2_COBID_BASE + mThisNodeId, data);
-			sent++;
-		}
-	}
-	mLocalInit = 1;
 }
 
 
-uint8_t VARS2_GetLegacy(uint16_t legacyVarId, int16_t* value, uint16_t* invalid)
+/* value in physical units into the 4-byte value of meta's field */
+static void StoreValue(const sVarMeta* meta, float value)
 {
-	uint16_t idx;
-	const sVarMeta* meta;
+	int32_t i32;
+
+	if (meta->Type == VT_FLOAT)
+	{
+		memcpy(meta->pVar, &value, 4);
+	}
+	else if (meta->Type == VT_UINT32)
+	{
+		uint32_t u32 = (value <= 0.0f) ? 0u : (uint32_t)(value + 0.5f);
+		memcpy(meta->pVar, &u32, 4);
+	}
+	else   /* VT_INT32 / VT_BOOL / VT_ENUM */
+	{
+		i32 = (int32_t)(value >= 0.0f ? value + 0.5f : value - 0.5f);   /* round to nearest, no libm */
+		memcpy(meta->pVar, &i32, 4);
+	}
+}
+
+uint8_t VARS2_SetById(eVarId id, float value, uint8_t valid)
+{
+	const sVarMeta* meta = MetaOf((uint16_t)id);
+
+	if (meta == NULL || !IsOwn(meta))
+	{
+		return 0;
+	}
+	StoreValue(meta, value);
+	*ValidOf(meta) = valid ? 1u : 0u;
+	return 1;
+}
+
+
+/* ---- temporary compatibility (VARS.c wrappers), removed in part C ---- */
+
+uint8_t VARS2_SetLegacy(uint16_t legacyVarId, int16_t raw, uint8_t valid)
+{
+	const sVarMeta* meta = MetaOf(legacyVarId);   /* legacy id == VARS2 id */
 	float f32;
 	int32_t i32;
 
-	if (legacyVarId > VAR_MAX_ID)
+	if (meta == NULL || !IsOwn(meta))
 	{
 		return 0;
 	}
-	idx = VarIdToIndex[legacyVarId];   /* legacy id == VARS2 id in this migration step */
-	if (idx == VAR_IDX_UNKNOWN)
+	if (meta->Type == VT_FLOAT)
 	{
-		return 0;
+		f32 = (float)raw / meta->LegacyScale;   /* exactly as the old TX conversion */
+		memcpy(meta->pVar, &f32, 4);
 	}
-	meta = &VarMeta[idx];
-	if (meta->Producer == mThisNodeId || mState[idx].Received == 0)
+	else   /* VT_INT32 / VT_UINT32 / VT_BOOL / VT_ENUM: integer value of raw */
 	{
+		i32 = (int32_t)raw;
+		memcpy(meta->pVar, &i32, 4);
+	}
+	*ValidOf(meta) = valid ? 1u : 0u;
+	return 1;
+}
+
+int16_t VARS2_GetLegacy(uint16_t legacyVarId, uint16_t* invalid, uint16_t invalidFlag)
+{
+	const sVarMeta* meta = MetaOf(legacyVarId);   /* legacy id == VARS2 id */
+	float f32;
+	int32_t i32;
+
+	if (meta == NULL)
+	{
+		if (invalid != NULL) *invalid |= invalidFlag;
 		return 0;
 	}
 
 	if (meta->Type == VT_FLOAT)
 	{
-		memcpy(&f32, meta->pValue, 4);
+		memcpy(&f32, meta->pVar, 4);
 		f32 *= meta->LegacyScale;
+		if (f32 > 32767.0f) f32 = 32767.0f;
+		if (f32 < -32768.0f) f32 = -32768.0f;
 		i32 = (int32_t)(f32 >= 0 ? f32 + 0.5f : f32 - 0.5f);   /* round to nearest, no libm */
 	}
-	else   /* integer value, as BuildLegacyFrame() writes it */
+	else   /* integer value, as VARS2_SetLegacy() / RX writes it */
 	{
-		memcpy(&i32, meta->pValue, 4);
+		memcpy(&i32, meta->pVar, 4);
 	}
 	if (i32 > 32767) i32 = 32767;
 	if (i32 < -32768) i32 = -32768;
-	*value = (int16_t)i32;
 
-	if (!VARS2_IsValid((eVarId)meta->Id) && invalid != NULL)
+	if (*ValidOf(meta) == 0 && invalid != NULL)
 	{
-		*invalid |= INVALID_FLAG;
+		*invalid |= invalidFlag;
 	}
-	return 1;
+	return (int16_t)i32;
 }
 
-
-void VARS2_SetValid(eVarId id, uint8_t valid)
+void VARS2_SendLegacy(uint16_t legacyVarId)
 {
-	uint16_t idx;
+	const sVarMeta* meta = MetaOf(legacyVarId);   /* legacy id == VARS2 id */
 
-	if ((uint16_t)id > VAR_MAX_ID)
+	if (meta == NULL || !IsOwn(meta))
 	{
-		return;
+		return;   /* only this node's variables are sent */
 	}
-	idx = VarIdToIndex[(uint16_t)id];
-	if (idx == VAR_IDX_UNKNOWN)
-	{
-		return;
-	}
-	mState[idx].Valid = valid;
-	mState[idx].RxTick = HAL_GetTick();
-}
-
-
-uint8_t VARS2_IsValid(eVarId id)
-{
-	uint16_t idx;
-
-	if ((uint16_t)id > VAR_MAX_ID)
-	{
-		return 0;
-	}
-	idx = VarIdToIndex[(uint16_t)id];
-	if (idx == VAR_IDX_UNKNOWN)
-	{
-		return 0;
-	}
-	if (mState[idx].Valid == 0)
-	{
-		return 0;
-	}
-	if ((HAL_GetTick() - mState[idx].RxTick) > VarMeta[idx].TimeoutMs)
-	{
-		return 0;
-	}
-	return 1;
+	SendOnCan((uint16_t)(meta - VarMeta));
 }

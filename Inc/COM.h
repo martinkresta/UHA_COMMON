@@ -40,7 +40,6 @@
 #define  CMD_SYSINFO_REQ       0x550
 #define  CMD_SYSINFO_RSP       0x560
 
-#define  STREAM_LIST_SIZE		100
 
 
 
@@ -84,6 +83,7 @@ uint8_t COM_GetNodeStatus(uint8_t nodeId);
 int16_t COM_GetNetworkStatus(void);
 uint8_t COM_GetNodeId(void);
 
+// temporary: sends one of this node's variables now (only dead SCOM code uses it)
 void COM_SendVariable(uint16_t varId);
 void COM_SendMessage(uint16_t cobid, uint8_t* data, uint8_t dlc);
 
@@ -99,6 +99,7 @@ uint8_t COM_SendSysInfoCommon(uint8_t type);
 // function  for sending UHAMON messages
 void COM_SendUhamonMessage(uint8_t* uhamonMsg);
 
+// temporary no-op: VARS2 sends this node's variables by the YAML period_ms (removed in part C)
 void COM_AddStreamedVariable(uint16_t varId, uint16_t period);
 
 uint8_t COM_GetRxMessage( s_CanRxMsg* msg);

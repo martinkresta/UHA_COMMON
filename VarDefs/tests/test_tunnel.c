@@ -2,7 +2,8 @@
  * test_tunnel.c - PC unit test of the ELECON VARS2 tunnel (step 2):
  * ASW_ELECON/Core/Src/RPISERP.c (TX FIFO, chained TX) and SCOM.c (hook,
  * local publishing incl. NETWORK_STATUS, no old 0x221 traffic) with a simulated UART/DMA.
- * RPISERP.c and SCOM.c are #included so their static functions are covered.
+ * RPISERP.c and SCOM.c are #included so their static functions are covered; VARS2.c and
+ * the VARS.c wrappers (direct access) are linked.
  * Run via tests/test_tunnel.py.
  */
 
@@ -35,10 +36,7 @@ static USART_TypeDef gUsart;
 static DMA_Channel_TypeDef gDmaTx, gDmaRx;
 static UART_HandleTypeDef gUart;
 
-static int16_t gRaw[NUM_OF_VARIABLES];
-int16_t VAR_GetVariableLegacy(uint16_t id, uint16_t* invalid) { if (id < NUM_OF_VARIABLES) return gRaw[id]; if (invalid) *invalid |= INVALID_FLAG; return 0; }
-int16_t VAR_GetVariable(uint16_t id, uint16_t* invalid) { return VAR_GetVariableLegacy(id, invalid); }
-void VAR_SetVariable(uint16_t id, int16_t v, uint8_t valid) { (void)valid; if (id < NUM_OF_VARIABLES) gRaw[id] = v; }
+/* VAR_SetVariable()/VAR_GetVariable(): the real VARS.c wrappers over Vars2 are linked */
 static int gCanSent;
 uint8_t MCAN_SendFrame(uint16_t cobid, uint8_t* data, uint8_t dlc) { (void)cobid; (void)data; (void)dlc; gCanSent++; return 1; }
 void COM_SendMessage(uint16_t cobid, uint8_t* data, uint8_t dlc) { (void)cobid; (void)data; (void)dlc; }
@@ -136,7 +134,7 @@ static void test_own_tx_tunnel(void)
 	VARS2_Init(NODEID_ELECON);
 	SetupLink();
 	gBudget = 100000; gCanSent = 0;
-	gRaw[VAR_BAT_VOLTAGE_V10] = 532;
+	VAR_SetVariable(VAR_BAT_VOLTAGE_V10, 532, 1);
 	VARS2_SendLegacy(VAR_BAT_VOLTAGE_V10);
 	LinePump();
 	CHECK(gCanSent == 1);
@@ -153,8 +151,14 @@ static void test_local_and_no_old_traffic(void)
 
 	VARS2_Init(NODEID_ELECON);
 	SetupLink();
-	for (i = 0; i < NUM_OF_VARIABLES; i++) gRaw[i] = (int16_t)(i + 1);
-	gRaw[VAR_NETWORK_STATUS] = 0;   /* set by SCOM every 5 s from COM_GetNetworkStatus() (mock: 0x1F) */
+	for (i = 0; i < VARS_COUNT; i++)   /* own variables written by the (unconverted) producers */
+	{
+		if (VarMeta[i].Producer == NODEID_ELECON && VarMeta[i].Id != VID_NETWORK_STATUS)
+		{
+			VAR_SetVariable(VarMeta[i].LegacyId, (int16_t)(VarMeta[i].Id + 1), 1);
+		}
+	}
+	/* NETWORK_STATUS: set by SCOM every 5 s from COM_GetNetworkStatus() (mock: 0x1F) */
 	memset(perId, 0, sizeof(perId));
 	gCanSent = 0; gTick = 1000000;
 	for (t = 0; t < 6000; t++)   /* 60 s */
@@ -175,7 +179,7 @@ static void test_local_and_no_old_traffic(void)
 			if (id == VID_NETWORK_STATUS)
 			{
 				uint32_t v = (uint32_t)p.data[2] | ((uint32_t)p.data[3] << 8) | ((uint32_t)p.data[4] << 16) | ((uint32_t)p.data[5] << 24);
-				if (!(v == 0x1F && p.data[6] == 1) && !(perId[id] == 1 && v == 0)) nsBad++;   /* first one may precede the first 5 s set */
+				if (!(v == 0x1F && p.data[6] == 1) && !(perId[id] == 1 && v == 0 && p.data[6] == 0)) nsBad++;   /* first one may precede the first 5 s set: 0, invalid */
 			}
 		}
 		else if (p.id == 0x221) cnt221++;
