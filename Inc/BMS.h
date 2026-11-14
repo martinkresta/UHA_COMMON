@@ -11,10 +11,12 @@
 
 
 #include "main.h"
+#include "uha_vars_gen.h"   /* sVarsPack */
 #include "RTC.h"
 
 #define BMS_DATA_LENGTH 58   // documantation says 58,
 #define BMS_DMA_REC_LENGTH 59 // maximal allowed length of DMA transfer
+#define BMS_TIMEOUT_S      5  // BMS_Update() calls without a valid frame before the published pack is invalid
 
 
 #define BMS_STAT_ALLOW_CHARGE					0x01
@@ -62,6 +64,7 @@ typedef struct
   uint8_t NewDataReady;
   uint8_t RecLength;
   uint8_t PackInfoValid;
+  uint8_t TimeoutCounter;   // BMS_Update() calls since the last valid frame (saturates at BMS_TIMEOUT_S)
 }sComData;    // data used for nonblocking communication (only for internal purposes)
 
 typedef struct{
@@ -71,12 +74,15 @@ typedef struct{
   sBmsPackInfo Info;
   sLiveData LiveData;
   sCell Cells[16];
+  sVarsPack* pVars;   // published pack group (Vars2), NULL = not published
   sComData Com;
 }sBMS;
 
 
 
-void BMS_Init(sBMS* bms);
+/* pVars: the pack group this BMS publishes (Vars2.PackHome*), NULL = not published. The pack is valid
+ * while a valid frame arrived within the last BMS_TIMEOUT_S updates (Active is not changed by this). */
+void BMS_Init(sBMS* bms, sVarsPack* pVars);
 // Update function, to the called periodically by the scheduler
 void BMS_Update(sBMS* bms);
 // Gets maximal cell voltage

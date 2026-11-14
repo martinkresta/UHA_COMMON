@@ -8,19 +8,23 @@
 
 #include "BMS.h"
 #include "main.h"
+#include "VARS2.h"
 
 
 
 static void DecodeData(uint8_t* data, sBMS* bms);
 static uint8_t IsChecksumValid(uint8_t* data);
 static void CalculateCellStats(sBMS* bms);
+static void Publish(sBMS* bms);
 
 
 // Initialization of the BMS monitoring module
-void BMS_Init(sBMS* bms)
+void BMS_Init(sBMS* bms, sVarsPack* pVars)
 {
   HAL_StatusTypeDef UartRetval;
   uint32_t UartError;
+  bms->pVars = pVars;
+  bms->Com.TimeoutCounter = BMS_TIMEOUT_S;   // invalid until the first valid frame
   if(bms->Huart != NULL)
   {
     bms->Com.PackInfoValid = 1;
@@ -46,6 +50,11 @@ void BMS_Update(sBMS* bms)
 
 	bmsData = NULL; // Initialize pointer!!!
 
+	if (bms->Com.TimeoutCounter < BMS_TIMEOUT_S)
+	{
+		bms->Com.TimeoutCounter++;   // reset by a valid frame below: invalid after BMS_TIMEOUT_S updates without one
+	}
+
 	if (bms->Com.NewDataReady)
 	{
 		if (bms->Com.RecLength >= (BMS_DATA_LENGTH - 1))
@@ -66,6 +75,7 @@ void BMS_Update(sBMS* bms)
           DecodeData(bmsData, bms);
           CalculateCellStats(bms);
           bms->Active = 1;
+          bms->Com.TimeoutCounter = 0;
         }
         else
         {
@@ -80,6 +90,9 @@ void BMS_Update(sBMS* bms)
 
 		bms->Com.NewDataReady = 0;
 	}
+
+	Publish(bms);
+
 	UartRetval = HAL_UARTEx_ReceiveToIdle_DMA(bms->Huart, bms->Com.RxData, BMS_DMA_REC_LENGTH);
 	if(UartRetval  != HAL_OK)
 	{
@@ -114,6 +127,35 @@ uint8_t BMS_IsDischargingEnabled(sBMS* bms)
 }
 
 // *********  Private functions ************
+
+// Pack values into the Vars2 group: valid while a valid frame arrived within the last BMS_TIMEOUT_S
+// updates; otherwise the last values are kept and marked invalid
+static void Publish(sBMS* bms)
+{
+  sVarsPack* p = bms->pVars;
+  uint8_t fresh = (bms->Active && bms->Com.TimeoutCounter < BMS_TIMEOUT_S) ? 1 : 0;
+  uint8_t i;
+
+  if (p == NULL)
+  {
+    return;
+  }
+  if (fresh)
+  {
+    p->Soc_pct.value = (float)bms->LiveData.SOC;
+    p->Current_A.value = (float)bms->LiveData.BatteryCurrent_mA / 1000.0f;
+    p->Voltage_V.value = (float)bms->LiveData.VoltageTotal_mV / 1000.0f;
+    p->EnergyStored_Wh.value = (float)bms->LiveData.Energystored_Wh;
+    p->ChargedToday_Wh.value = (float)bms->LiveData.TodayCharging_Wh;
+    for (i = 0; i < 16; i++)
+    {
+      p->CellVoltage_V[i].value = (float)bms->Cells[i].Voltage_mV / 1000.0f;
+      p->CellTemp_C[i].value = (float)bms->Cells[i].Temp_C;
+    }
+  }
+  VARS2_SetGroupValid(p, fresh);
+}
+
 // checks the data in receive buffer, returns 1 if chksm is valid, 0 otherwise
 static uint8_t IsChecksumValid(uint8_t* data)
 {
