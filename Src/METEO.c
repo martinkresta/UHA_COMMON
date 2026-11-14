@@ -8,17 +8,19 @@
 
 #include "METEO.h"
 #include "stdlib.h"
-#include "VARS.h"
+#include "VARS2.h"
 
 
 sWindSensor mWind;
 sRainSensor mRain;
+static sVarsMeteo* mpVars;   /* produced group Vars2.Meteo */
 
 
 
 
-void METEO_Init(uint32_t windPin, uint32_t rainPin)
+void METEO_Init(uint32_t windPin, uint32_t rainPin, sVarsMeteo* pVars)
 {
+   mpVars = pVars;
    mWind.Pin = windPin;
    mRain.Pin = rainPin;
    mWind.avgIdx = 0;
@@ -27,7 +29,6 @@ void METEO_Init(uint32_t windPin, uint32_t rainPin)
 
 void METEO_Update_1s(void)
 {
-	// copy the values to variables
 	uint8_t i;
 	uint16_t sum;
 	uint32_t tick = HAL_GetTick();
@@ -61,10 +62,12 @@ void METEO_Update_1s(void)
 
 
 
-   VAR_SetVariable(VAR_METEO_WIND_BURST, mWind.WindSpeedBurst, 1);
-   VAR_SetVariable(VAR_METEO_WIND_AVG, mWind.WindSpeedAvg, 1);
-   VAR_SetVariable(VAR_METEO_WIND_POW, mWind.PowerW, 1);
-   VAR_SetVariable(VAR_METEO_WIND_ENERGY, mWind.EnergyuWh / 1000000, 1);
+   // publish (wind speeds are measured in dm/s)
+   mpVars->WindBurst_mps.value = (float)mWind.WindSpeedBurst / 10.0f;
+   mpVars->WindAvg_mps.value = (float)mWind.WindSpeedAvg / 10.0f;
+   mpVars->WindPower_W.value = (float)mWind.PowerW;
+   mpVars->WindEnergy_Wh.value = (float)(mWind.EnergyuWh / 1000000);
+   VARS2_SetGroupValid(mpVars, 1);
 
 }
 

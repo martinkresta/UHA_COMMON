@@ -3,12 +3,12 @@ test_compat.py - old vs new: frames on CAN / tunnel and VAR_GetVariable() result
 
 Builds tests/test_compat.c twice with gcc:
   ref  with UHA_COMMON/Inc + Src (VARS*, COM, uha_vars_gen) from a reference commit
-       (default: main, i.e. before direct access: Vars[], COM stream list, VARS2_SendLegacy)
+       (default e28d6a8 = main before direct access: Vars[], COM stream list, VARS2_SendLegacy)
   new  with the current working tree
 and compares the outputs line by line (see test_compat.c). The YAML ids, scales, periods and
 producers must be the same in both (direct access changed only the layout).
 
-Usage: python tests/test_compat.py [--cc gcc] [--ref main]     Exit code 0 = OK.
+Usage: python tests/test_compat.py [--cc gcc] [--ref e28d6a8]     Exit code 0 = OK.
 """
 
 import argparse
@@ -59,7 +59,7 @@ def export_ref(ref, dest):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cc", default="gcc")
-    ap.add_argument("--ref", default="main", help="reference commit (before direct access)")
+    ap.add_argument("--ref", default="e28d6a8", help="reference commit (default: main before direct access)")
     a = ap.parse_args()
     if shutil.which(a.cc) is None:
         print(f"ERROR: compiler '{a.cc}' not found")

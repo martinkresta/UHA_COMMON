@@ -12,6 +12,7 @@
 
 #include "main.h"
 #include "stdlib.h"
+#include "uha_vars_gen.h"   /* sVarsMeteo */
 
 #define   MAX_WINDPULSE_PERIOD_MS   	10000
 #define   WIND_AVG_WINDOW_S            30
@@ -27,7 +28,6 @@ typedef struct
    uint16_t PowerW;
    uint32_t LastPulse;
    uint32_t Pin;
-   uint16_t VarId;
    uint16_t avgIdx;
    uint16_t buff[WIND_AVG_WINDOW_S];
 }sWindSensor;
@@ -38,11 +38,11 @@ typedef struct
    uint16_t CumulatedRainFall;
    uint32_t LastPulse;
    uint32_t Pin;
-   uint16_t VarId;
 }sRainSensor;
 
 
-void METEO_Init(uint32_t windPin, uint32_t rainPin);
+/* pVars: produced group (Vars2.Meteo), always valid */
+void METEO_Init(uint32_t windPin, uint32_t rainPin, sVarsMeteo* pVars);
 
 void METEO_Update_1s(void);
 
