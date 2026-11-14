@@ -490,6 +490,14 @@ Commented-out `TEMP_AssignSensor(T309/T116, ...)`, `COM_AddStreamedVariable(VAR_
 No interrupt writes variables (OW / TEMP results copied in the 100 ms task, Sensirion I2C in the 1 s task,
 CAN RX in the main loop).
 
+### Review (B.10, after flashing)
+
+No bugs. Constants checked by a PC program over all 0.1 degC values: identical except the listed SOC rounding
+(`LOW_SOC_OFF` / `LOW_SOC_ECO` can trigger at 29.6 % / 84.6 %); the `outside < indoor + 1.0` tie gives no
+mismatch for indoor >= 21 degC (the only case where it is evaluated). RH is a whole % (no difference).
+Nits for the next RECU change: `RECON.c` comment "(0..3)" for `dumping_factor` should be "(0..4)";
+`(int16_t)Co2_ppm.value` would overflow above 32767 ppm (sensor cannot deliver it).
+
 ### Build
 
 v001.05, CRC `0xE65E9036`, 36 warnings (37 before: unused `fc_temp` gone). text 65236 → 64916 (−320 B),
