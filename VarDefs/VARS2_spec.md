@@ -135,8 +135,8 @@ uint8_t VARS2_SetById(eVarId id, float value, uint8_t valid);   /* by id (TEMP, 
 - **Ownership:** `Vars2` is used by `APP.c` (wiring) and `VARS2.c` only. Each module gets pointers to its
   groups in its `Init()`: non-const for the groups it produces, `const` for the groups it reads.
   Example: `GEMON_Init(&Vars2.GlobalEnergy, &Vars2.HomeEnergy, &Vars2.WorkshopEnergy)`.
-- **TX:** VARS2 sends every variable this node produces by `period_ms` (CAN 0x180+node, max 1 frame per
-  10 ms, round robin); `on_can: false` variables only through `VARS2_UpdateLocal_10ms()` (ELECON tunnel).
+- **TX:** VARS2 sends every variable this node produces by `period_ms` (CAN 0x180+node, max 2 frames per
+  10 ms = `VARS2_CAN_MAX_PER_CALL`, round robin); `on_can: false` variables only through `VARS2_UpdateLocal_10ms()` (ELECON tunnel).
   The frame carries `.value` and `.valid` as they are at send time.
 - **RX:** value and valid from the frame into `Vars2` (not for own or unknown ids); `.valid` is cleared
   when no frame arrived for `timeout_ms`. Readers only look at `.valid`.

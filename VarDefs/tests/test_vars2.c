@@ -12,6 +12,8 @@
 #include "uha_vars_gen.h"
 #include "VARS2.h"
 #include "MCAN.h"
+/* keep equal to VARS2_CAN_MAX_PER_CALL in Src/VARS2.c */
+#define VARS2_TEST_CAN_MAX  2
 
 static int fails = 0;
 static int checks = 0;
@@ -332,7 +334,7 @@ static void test_tx(void)
 		}
 	}
 	CHECK(bad == 0);           /* never faster than the period */
-	CHECK(maxPerTick == 1);    /* max 1 CAN frame per 10 ms */
+	CHECK(maxPerTick == VARS2_TEST_CAN_MAX);    /* the limit is reached, never exceeded */
 	frames = 0;
 	for (k = 0; k < VARS_COUNT; k++)
 	{

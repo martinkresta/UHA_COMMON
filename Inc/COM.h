@@ -24,6 +24,7 @@
 #define  CMD_GESTURE			    0x120
 #define  CMD_AC_REMOTE_REQ    0x130
 #define  CMD_RECU_REMOTE_REQ  0x140
+#define  CMD_VARS2            0x180
 
 
 

@@ -18,7 +18,7 @@
 #define VARS2_COBID_BASE  0x180u
 #define VARS2_FLAG_VALID  0x01u  /* spec sec.2, byte 6 bit0 */
 
-#define VARS2_CAN_MAX_PER_CALL    1u   /* like the old COM stream: 1 frame per 10 ms */
+#define VARS2_CAN_MAX_PER_CALL    2u   /* max 2 frames per 10 ms (tests: VARS2_TEST_CAN_MAX in test_vars2.c, test_com.c) */
 #define VARS2_LOCAL_MAX_PER_CALL  4u   /* bounds the tunnel burst per 10 ms tick */
 
 /* protocol state only; value + valid live in Vars2 */

@@ -16,6 +16,8 @@
 #include "VARS2.h"
 #include "MCAN.h"
 #include "COM.h"
+/* keep equal to VARS2_CAN_MAX_PER_CALL in Src/VARS2.c */
+#define VARS2_TEST_CAN_MAX  2
 
 static int fails = 0;
 static int checks = 0;
@@ -131,7 +133,7 @@ static void test_stream(uint8_t node)
 		prev = f->tick;
 	}
 	CHECK(badInterval == 0);   /* never faster than the period */
-	CHECK(maxPerTick <= 1);    /* 1 frame per 10 ms */
+	CHECK(maxPerTick <= VARS2_TEST_CAN_MAX);    /* = VARS2_CAN_MAX_PER_CALL frames per 10 ms */
 	for (k = 0; k < VARS_COUNT; k++)
 	{
 		const sVarMeta* m = &VarMeta[k];

@@ -64,7 +64,7 @@ uint8_t COM_GetRxMessage( s_CanRxMsg* msg)
 {
 	while (1 == MCAN_GetRxMessage(msg))
 	{
-		if ((msg->header.StdId & 0x7F0) == 0x180)
+		if ((msg->header.StdId & 0x7F0) == CMD_VARS2)
 		{
 			VARS2_ProcessRxFrame((uint16_t)msg->header.StdId, (uint8_t)msg->header.DLC,
 					(msg->header.RTR != CAN_RTR_DATA), msg->data);
