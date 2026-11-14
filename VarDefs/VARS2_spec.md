@@ -50,108 +50,98 @@ nodes:    {NAME: nodeId, ...}            # RPI = 15 (receive only)
 defaults: {type: float, timeout_ms: auto, on_can: true}
 enums:    {EnumName: {0: Name, 1: Name, ...}}
 groups:
-  <group>:                                # one C struct per group
-    producer: <NODE>                      # default for the group
-    vars:
+  <Group>:                                # CamelCase, = member of Vars2
+    producer: <NODE>                      # one producer per group (on the group or its container)
+    struct: <Type>                        # optional: shared C type sVars<Type> (identical fields)
+    validity: group | per_field           # default group: VARS2_SetGroupValid(); per_field: by id
+    vars:                                 # either vars ...
       - id: <uint16>
-        name: <UPPER_SNAKE>               # physical units, unit suffix in name
-        legacy: VAR_...                   # old define (migration)
+        name: <UPPER_SNAKE>               # VID_<name>, name in uha2.json
+        field: <CamelCase_unit>           # C field, unit suffix _pct _V _A _W _Wh _Ah _C _l _lpm _Pa _ppm _mps
         type: float|int32|uint32|bool|enum   (default float)
         enum: <EnumName>                  # if type: enum
         unit: "<unit>"
-        legacy_scale: <number>            # old int16 raw = physical * legacy_scale (default 1)
-        producer: <NODE>                  # overrides group producer
-        period_ms: <int>                  # publish period
-        timeout_ms: <int>|auto            # auto = 3 x period_ms
-        on_can: false                     # not on CAN (today ELECON-local, RPi only)
+        period_ms: <int>                  # publish period of the producer (VARS2 TX)
+        timeout_ms: <int>|auto            # auto = 3 x period_ms (receiver: .valid cleared)
+        on_can: false                     # not on CAN, only through the ELECON tunnel to the RPi
         count: <n>                        # array: ids id .. id+n-1
         receivers: [NODE, ...]            # documentation only
+        legacy: VAR_...                   # old int16 name, kept for UhaGatePy (uha.json); not used by the FW
+        legacy_scale: <number>            # old int16 raw = physical * legacy_scale (uha.json only)
         desc: "<text>"
+  <Container>:                            # ... or subgroups (max 3 levels: Vars2.Container.Group.Field)
+    subgroups:
+      <Group>: {producer, validity, vars}
 ```
 
-Validator rules:
-- unique `id` (arrays expanded) and unique `name`;
-- `producer`, `receivers` reference existing nodes; `enum` exists;
-- `count` ranges do not overlap other IDs;
-- **ELM rule:** `ELM.c` writes power to `energy id + 10` — for every ELM
-  energy variable (`CONS_*_WH` written via `ELM_AddMeter`) the variable at
-  `id + 10` must exist and be `POW_*_W`;
-- compatibility check against the previous released YAML: no ID/type change,
-  no removed ID reused.
+Validator rules (`tools/vars_validate.py`):
+- unique `id` (arrays expanded), `name` and `field`; `producer`, `receivers` reference existing nodes;
+  `enum` exists; `count` ranges do not overlap other IDs;
+- one producer per group (no `producer` on a variable), field names with the unit suffix, groups sharing a
+  `struct` have identical fields, at most one level of `subgroups`;
+- **ELM rule:** `ELM.c` writes power to `energy id + 10` — for every `CONS_*_WH` in `Meters` the variable at
+  `id + 10` must exist, be `POW_*_W` and be in the same group;
+- compatibility check against the previous released YAML: no ID/type change, no removed ID reused.
 
 ---
 
 ## 4. Generated FW code (UHA_COMMON)
 
-Naming: field names in LEMON style — CamelCase from the YAML name, unit
-suffix after underscore, group prefix dropped (`BAT_VOLTAGE_V` →
-`BatVoltage_V`, `BMS1_SOC` in group bms1 → `Soc`). IDs as `VID_<NAME>`.
+Every variable is a typed `{value, valid}` item (8 B): `sVarF32` (float), `sVarI32` (int32, bool, enum),
+`sVarU32` (uint32), see `Inc/VARS2_types.h`. Values are in physical units. IDs as `VID_<NAME>`.
 
 ### `uha_vars_gen.h`
 
 ```c
 typedef enum { VID_BAT_SOC = 10, VID_BAT_VOLTAGE_V = 11, /* ... */ } eVarId;
-
 typedef enum { ElHeaterState_Heating = 0, /* ... */ } eElHeaterState;
 
-typedef struct { float BatSoc; float BatVoltage_V; /* ... */ } sVarsGlobalEnergy;
-typedef struct { float Soc; float CellVoltage_V[16]; /* ... */ } sVarsBms1;
-/* ... one struct per group, only 4-byte field types ... */
+typedef struct { sVarF32 Soc_pct; sVarF32 Voltage_V; /* ... */ } sVarsGlobalEnergyBattery;
+typedef struct { sVarsGlobalEnergyBattery Battery; sVarsGlobalEnergySolar Solar;
+                 sVarsGlobalEnergyLoad Load; } sVarsGlobalEnergy;           /* container */
+typedef struct { sVarF32 Soc_pct; /* ... */ sVarF32 CellVoltage_V[16]; } sVarsPack;  /* shared struct */
 
-typedef struct { sVarsGlobalEnergy GlobalEnergy; sVarsBms1 Bms1; /* ... */ } sVars;
-extern sVars Vars2;
-
-#define VARS_COUNT  <number of values, arrays expanded>
-#define VAR_MAX_ID  <highest id>
+typedef struct { sVarsSystem System; sVarsGlobalEnergy GlobalEnergy; sVarsPack PackHome80Ah; /* ... */ } sVars;
+extern sVars Vars2;   /* Vars2.GlobalEnergy.Battery.Soc_pct.value / .valid */
 ```
 
 ### `uha_vars_gen.c`
 
 ```c
 sVars Vars2;
-
-const sVarMeta VarMeta[VARS_COUNT] = {
-/* id  type      pValue                          producer         period timeout legacy_scale legacyId */
-  {10, VT_FLOAT, &Vars2.GlobalEnergy.BatSoc,     NODEID_ELECON,   1000,  3000,   1.0f,        VAR_BAT_SOC},
-  /* ... */
+const sVarMeta VarMeta[VARS_COUNT] = {     /* sorted by id, 16 B each */
+/* pVar                            id  period tmout  type      producer       flags */
+  { &Vars2.GlobalEnergy.Battery.Soc_pct, 10, 1000, 3000, VT_FLOAT, NODEID_ELECON, VMF_ON_CAN },
 };
-const uint16_t VarIdToIndex[VAR_MAX_ID + 1];   /* 0xFFFF = unknown id */
+const uint16_t VarIdToIndex[VAR_MAX_ID + 1];   /* VAR_IDX_UNKNOWN = unknown id */
+/* + compile-time checks: every struct is a plain array of 8-byte items */
 ```
-
-Only variables with `on_can: true` are published on CAN.
 
 ### Hand-written module `VARS2.c/.h` (UHA_COMMON)
 
 ```c
-void    VARS2_Init(uint8_t thisNodeId);
-void    VARS2_ProcessFrame(const uint8_t* data);   /* RX 0x180+node, called by COM */
-void    VARS2_Update_10ms(void);                    /* TX of this node's variables */
-void    VARS2_SetValid(eVarId id, uint8_t valid);   /* producer side */
-uint8_t VARS2_IsValid(eVarId id);                   /* RX flag && not timed out */
+void    VARS2_Init(uint8_t thisNodeId);               /* from COM_Init(): all 0 / invalid */
+void    VARS2_Update_10ms(void);                      /* from COM_Update_10ms(): TX + receive timeout */
+uint8_t VARS2_ProcessRxFrame(uint16_t cobId, uint8_t dlc, uint8_t rtr, const uint8_t* data);   /* from COM */
+void    VARS2_UpdateLocal_10ms(VARS2_FrameHook cb);   /* ELECON: on_can: false variables to the tunnel */
+void    VARS2_SetFrameHook(VARS2_FrameHook hook);     /* ELECON: every RX / TX frame to the tunnel */
+
+/* producer API */
+VARS2_SetGroupValid(pGroup, valid);                   /* .valid of every field of a group / container */
+VarSet(&pGroup->Field, value, valid);                 /* one field (VarSetI32 / VarSetU32 for int types) */
+uint8_t VARS2_SetById(eVarId id, float value, uint8_t valid);   /* by id (TEMP, ELM, SENSIRION) */
 ```
 
-- Per-value state in RAM: `Valid`, `RxTick` (~8 B per value).
-- **Validity:** producer side only via `VARS2_SetValid()`; default after
-  start = **valid**; modules invalidate when needed.
-- Receive side: VALID flag from the frame + timeout (`timeout_ms`).
-- TX pacing: like today, one frame per 10 ms tick per node.
-
-### Migration-phase behaviour (steps 1–5)
-
-- TX takes the value **and validity** from the old `Vars[]`
-  (`legacyId`), converts `int16 / legacy_scale` → physical value, sends
-  the new frame. (Until step 6b the old frame `0x110` was sent as well; removed in 6b.)
-- RX of new frames writes into `Vars2` (+ state); nothing in the
-  application reads it yet.
-- Old `VARS.c` / `VAR_GetVariable()` and the old protocol stay unchanged.
-
-### Later (step 6 and beyond)
-
-- Application modules read `Vars2.<Group>.<Field>` + `VARS2_IsValid()`.
-- Modules with "modern" structures (LEMON, GEMON) get a pointer to their
-  generated group instance and write directly (no copy), e.g.
-  `LEMON_Init(..., &Vars2.Storage2)`; same type reused for several groups
-  (storage1/storage2).
+- **Ownership:** `Vars2` is used by `APP.c` (wiring) and `VARS2.c` only. Each module gets pointers to its
+  groups in its `Init()`: non-const for the groups it produces, `const` for the groups it reads.
+  Example: `GEMON_Init(&Vars2.GlobalEnergy, &Vars2.HomeEnergy, &Vars2.WorkshopEnergy)`.
+- **TX:** VARS2 sends every variable this node produces by `period_ms` (CAN 0x180+node, max 1 frame per
+  10 ms, round robin); `on_can: false` variables only through `VARS2_UpdateLocal_10ms()` (ELECON tunnel).
+  The frame carries `.value` and `.valid` as they are at send time.
+- **RX:** value and valid from the frame into `Vars2` (not for own or unknown ids); `.valid` is cleared
+  when no frame arrived for `timeout_ms`. Readers only look at `.valid`.
+- **State:** `mState` (private in `VARS2.c`) holds only `RxTick` / `TxTick`.
+- Everything runs in the main loop (no `Vars2` access from interrupts).
 
 ---
 
@@ -174,6 +164,7 @@ uint8_t VARS2_IsValid(eVarId id);                   /* RX flag && not timed out 
 | 5 | PC tool on new format | old format not supported in PC tool |
 | 6a | Nodes switch reading to new format, one by one | any order (all send both) |
 | 6b | Old format removed: `0x110` TX in `COM.c` (part A), `0x110` RX per node and ELECON `0x221` (part B) | after all read new; task `UHA_COMMON/tasks/vars2_stop_legacy_tx.md` |
+| 7 | Direct access: modules work with `Vars2` (`{value, valid}`, physical units), old `Vars[]` / `VAR_*` API, `COM_AddStreamedVariable()` and the legacy conversion removed | task `UHA_COMMON/tasks/vars2_direct_access.md`, notes `direct-access-notes.md` (2026-11-14) |
 
 Dependency map: `vars_dependency_map.md` (only mutual dependency:
 ELECON ↔ ELECON_D).
@@ -220,8 +211,7 @@ big-endian. Payload = 2 + 8 = 10 bytes (fits).
    packet id `0x184`.
 3. **ELECON-local variables with `on_can: false`** (producer ELECON, flag
    `VMF_ON_CAN` not set in `VarMeta`): sent **only** over the tunnel, packet id
-   `0x184`, with `VarMeta.PeriodMs`, value/validity converted from the old
-   `Vars[]` exactly like `VARS2_SendLegacy` (spec §4).
+   `0x184`, with `VarMeta.PeriodMs`, value / validity from `Vars2`.
 
 The RPi does not distinguish 1/2/3 — producer = `packet id & 0x0F`.
 

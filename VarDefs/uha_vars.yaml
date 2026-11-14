@@ -1,6 +1,6 @@
 # uha_vars.yaml — single source of truth for UHA shared variables (VARS)
-# DRAFT v0 generated 2026-10-31, reviewed by Martin from VARS.h + COM_AddStreamedVariable / VAR_Get/SetVariable
-# in all ASW projects + ELECON SCOM.c (RPi forward list). Review before use.
+# Created 2026-10-31 from the old VARS.h / stream lists; direct-access layout 2026-11-14
+# (UHA_COMMON/tasks/vars2_direct_access.md). Regenerate the FW tables with tools/gen_all.py.
 #
 # Layout (direct access): Vars2.<Group>.<Field> or Vars2.<Group>.<Subgroup>.<Field>, max 3 levels.
 #   group key     CamelCase, becomes the member name in Vars2 (Vars2.GlobalEnergy)
@@ -17,8 +17,8 @@
 #   name          VARS2 name, gives VID_<name> and the name in uha2.json (physical units, no scaling suffix)
 #   field         C field name in the group struct, CamelCase + unit suffix (_pct _V _A _W _Wh _Ah _C _l
 #                 _lpm _Pa _ppm _mps), no suffix for bool / enum / no unit
-#   legacy        old VARS.h define (int16 format, kept during migration)
-#   legacy_scale  old raw int16 = physical value * legacy_scale (omitted when 1)
+#   legacy        old int16 variable name; not used by the firmware, kept for UhaGatePy (uha.json)
+#   legacy_scale  old raw int16 = physical value * legacy_scale (omitted when 1); uha.json only
 #   type          float (default) | int32 | uint32 | bool | enum
 #   period_ms     publish period of the producer (VARS2 sends it by this period)
 #   on_can: false NOT on CAN, only forwarded ELECON -> RPi over serial (tunnel)
