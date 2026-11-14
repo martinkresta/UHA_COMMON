@@ -352,3 +352,43 @@ VarIdToIndex identical to `main` (except `pVar`), stream periods per node, wrapp
    `test_com` against the YAML and by the per-node script above.
 7. Dead `seen_member` in the validator → removed.
 8. Writes before `COM_Init()` are silently ignored (no node does it today).
+
+## Part B — IOBOARD_U (node 2), v001.04
+
+Branches: `ASW_IOBOARD_U` `feature/vars2_direct_access`, `UHA_COMMON` `feature/vars2_direct_access_ioboard_u`
+(METEO; from `main` with part A).
+
+### Inventory (old API, before)
+
+| Where | Call | Class | Now |
+|---|---|---|---|
+| `APP.c:199` | `TEMP_AssignSensor(T_IOBOARD_U, VAR_TEMP_IOBOARD_U, 0)` | by id | `VID_TEMP_IOBOARD_U_C` |
+| `APP.c:202-206` | `COM_AddStreamedVariable()` × 5 | TX config | removed (YAML: same 5 variables, same periods) |
+| `APP.c:55` | `VAR_Init()` | — | removed |
+| `APP.c:61` | `METEO_Init(IMP1_Pin, IMP2_Pin)` | produced (`Meteo`) | `METEO_Init(..., &Vars2.Meteo)` |
+| `METEO.c:64-67` | `VAR_SetVariable(VAR_METEO_*)` × 4 | produced | `mpVars->Wind*.value`, `VARS2_SetGroupValid(mpVars, 1)` |
+| `SCOM.c` | `VAR_SetVariable/GetVariable`, `NETWORK_STATUS` | by id | file removed (excluded from the build, never initialised) |
+
+Reads: none (IOBOARD_U reads no other node's variables).
+
+### Constants
+
+No threshold or constant compares a variable on this node. METEO keeps measuring in dm/s internally; the
+published values are converted: `WindBurst_mps = WindSpeedBurst / 10`, `WindAvg_mps = WindSpeedAvg / 10`
+(`legacy_scale` 10 as before, so the frames are unchanged).
+
+### Removed dead code
+
+- `SCOM.c`, `SCOM.h` (+ includes / commented calls in `APP.c`, `scheduler.c`). The `.cproject` still has the
+  build exclusion entry for `Src/SCOM.c` (harmless, CubeIDE file left untouched).
+- `sWindSensor.VarId`, `sRainSensor.VarId` in `METEO.h` (never used).
+
+### Concurrency
+
+`METEO_ExtiCallback()` (EXTI interrupt) writes only `mWind`; `Vars2.Meteo` is written in `METEO_Update_1s()`
+(main loop). Nothing else touches variables in an interrupt.
+
+### Build
+
+v001.04, CRC `0xCAADF741`, 21 warnings (as before, all in older code). text 46512 → 47308 (+796 B),
+data 544 → 544, bss 42808 → 41032 (−1776 B), before = v001.03 code with `UHA_COMMON` before part A.
