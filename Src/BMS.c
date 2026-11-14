@@ -50,6 +50,11 @@ void BMS_Update(sBMS* bms)
 
 	bmsData = NULL; // Initialize pointer!!!
 
+	if (bms->Com.TimeoutCounter < BMS_TIMEOUT_S)
+	{
+		bms->Com.TimeoutCounter++;   // reset by a valid frame below: invalid after BMS_TIMEOUT_S updates without one
+	}
+
 	if (bms->Com.NewDataReady)
 	{
 		if (bms->Com.RecLength >= (BMS_DATA_LENGTH - 1))
@@ -86,10 +91,6 @@ void BMS_Update(sBMS* bms)
 		bms->Com.NewDataReady = 0;
 	}
 
-	if (bms->Com.TimeoutCounter < BMS_TIMEOUT_S)
-	{
-		bms->Com.TimeoutCounter++;   // reset by the next valid frame
-	}
 	Publish(bms);
 
 	UartRetval = HAL_UARTEx_ReceiveToIdle_DMA(bms->Huart, bms->Com.RxData, BMS_DMA_REC_LENGTH);
