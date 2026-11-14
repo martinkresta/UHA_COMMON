@@ -11,6 +11,7 @@
 
 
 #include "main.h"
+#include "uha_vars_gen.h"   /* eVarId */
 
 
 #define SENS_MAX_SENSORS  10
@@ -38,8 +39,8 @@ typedef struct
  uint8_t Id;
  e_SensType Type;
  I2C_HandleTypeDef* BusHandle;
- int16_t VarId_1;
- int16_t VarId_2;
+ eVarId VarId_1;   /* VID_*: SHT4x temperature, SCD4x CO2, SDP810 differential pressure */
+ eVarId VarId_2;   /* VID_*: SHT4x relative humidity */
 }sI2cSensor;
 
 

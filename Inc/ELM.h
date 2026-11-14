@@ -12,6 +12,7 @@
 
 #include "main.h"
 #include "stdlib.h"
+#include "uha_vars_gen.h"   /* eVarId */
 
 #define   MIN_MEASURABLE_POWER_W		10
 
@@ -22,7 +23,7 @@ typedef struct
 	uint16_t W;
 	uint32_t LastPulse;
 	uint32_t Pin;
-	uint16_t VarId;
+	eVarId VarId;    /* VID_* of the energy (CONS_*_WH); power is at VarId + 10 (POW_*_W) */
 }sElMeter;
 
 
@@ -30,7 +31,7 @@ void ELM_Init(uint8_t numOfMeters);
 
 void ELM_Update_1s(void);
 
-void ELM_AddMeter(uint8_t ElmId, uint32_t pin, uint16_t VarId);
+void ELM_AddMeter(uint8_t ElmId, uint32_t pin, eVarId VarId);
 
 uint16_t ELM_GetConsumptionWh(uint8_t ElmId);
 uint16_t ELM_GetPowerW(uint8_t ElmId);

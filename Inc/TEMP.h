@@ -8,6 +8,7 @@
 
 /* Dependencies */
 #include "main.h"
+#include "uha_vars_gen.h"   /* eVarId */
 
 /* Macros */
 
@@ -79,7 +80,7 @@ typedef struct
 	int16_t tempC_10ths;
 	int16_t rawTempC_10ths;
 	eTempStatus status;
-	uint16_t VarId;
+	eVarId VarId;          /* VID_* of the temperature (one of this node's variables) */
 	uint8_t owBusId;
 	uint8_t errorCnt;
 }sTemp;
@@ -87,6 +88,6 @@ typedef struct
 void TEMP_Init(void);
 void TEMP_Update100ms(void);
 uint8_t TEMP_AddHwBus(uint8_t busId, GPIO_TypeDef* port, uint32_t pin);
-uint8_t TEMP_AssignSensor(uint8_t sensorId, uint16_t varId, uint8_t busId);
+uint8_t TEMP_AssignSensor(uint8_t sensorId, eVarId varId, uint8_t busId);
 
 
