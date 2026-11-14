@@ -513,7 +513,7 @@ Branch `ASW_ELECON_D` `feature/vars2_direct_access`. No `UHA_COMMON` change.
 |---|---|---|---|
 | `APP.c:112-115` | `TEMP_AssignSensor(..., VAR_TEMP_BOARD_ELECON_D / DILNA / AKUPACK1 / KOLARNA)` | by id | `VID_*_C` |
 | `APP.c:244-246` | `ELM_AddMeter(..., VAR_CONS_AXPERT / EVSE / WS_HEATING_WH)` | by id | `VID_*` (power id + 10) |
-| `APP.c:144-239` | `COM_AddStreamedVariable()` × 77 | TX config | removed (YAML: same 77 variables / periods) |
+| `APP.c:144-239` | `COM_AddStreamedVariable()` × 76 | TX config | removed (YAML: same 76 variables / periods) |
 | `APP.c:63,66` | `VAR_Init()`, `VAR_EnableVars2Read()` | — | removed |
 | `APP.c:422` | `VAR_GetVariable(VAR_TEMP_AKUPACK1)` (akupack heater) | read (own) | `mpTemps->PackWorkshop_C` |
 | `APP.c:451,458` | `VAR_GetVariable(VAR_MPPT_SOLAR_VOLTAGE_V100)` (exterior light) | read (ELECON) | `mpMppt->SolarVoltage_V` |
@@ -521,7 +521,7 @@ Branch `ASW_ELECON_D` `feature/vars2_direct_access`. No `UHA_COMMON` change.
 | `LEMON.c:438` | `VAR_GetVariable(VAR_BAT_SOC, NULL)` | read (ELECON) | `mpGlobalBattery->Soc_pct` |
 | `LEMON.c:227-238` | `VAR_SetVariable(VAR_STRG2_* / LLOAD2_* / LPV2_*)` × 12 | produced | `WorkshopEnergy.{Storage,Load,Pv}` |
 | `LEMON.c:245-329` | `VAR_SetVariable(VAR_BMS1_*)` × 37 (×2 slots) | produced | JKBMS `Publish()` → `PackWorkshop251Ah` |
-| `AXPERT.c:107-111,295-302,323-325` | `VAR_SetVariable(VAR_AXPERT_*)` × 16 | produced | `mpVars->*`, `VARS2_SetGroupValid()` |
+| `AXPERT.c:107-111,295-302,323-325` | `VAR_SetVariable(VAR_AXPERT_*)` × 16 | produced | `mpVars->*`, group validity (invalid until QPIGS and QPIGS2 were parsed once) |
 | `SHUNT.c:123,127` | `VAR_SetVariable(VAR_SHUNT_PCK1_CURRENT_A100)` | produced | `VarSet(&mpVars->Current_A)` |
 | `AC.c` | `#include "VARS.h"` (unused) | — | removed |
 
@@ -582,5 +582,15 @@ and EXTI (`ELM_ExtiCallback()`) callbacks only set flags / counters. `Vars2` is 
 
 ### Build
 
-v001.21, CRC `0x928F6374`, 54 warnings (as before). text 109420 → 106716 (−2704 B), data 904 → 904,
-bss 22744 → 20544 (−2200 B), before = v001.20 code with `UHA_COMMON` before part A.
+v001.21, CRC `0xFC274B82`, 54 warnings (as before). text 109420 → 106804 (−2616 B), data 904 → 904,
+bss 22744 → 20552 (−2192 B), before = v001.20 code with `UHA_COMMON` before part A.
+
+### Review (B.10)
+
+No control-logic bug. Verified: single-pack `UpdateStorageFromBms()` identical to the two-slot code with
+`Pack1_Ah = 0`, global SOC rounding, every unit conversion of the 76 published variables, constants, JKBMS
+invalidation before `Publish()`, ownership / const / init order, concurrency, done criteria.
+Fixed after the review: the Axpert group was valid from the first second (valid zeros with the Axpert off at
+start); now invalid until QPIGS and QPIGS2 were parsed once, as the direct values were before. Count corrected
+(76 variables, the task file said 77). Noted: `huart3` RX branches in `APP.c` are dead; `(uint16_t)(Soc + 0.5f)`
+relies on SOC >= 0 (always true).
