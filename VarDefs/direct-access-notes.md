@@ -810,6 +810,20 @@ UART callbacks only set flags (`MPPT_UartRxCallback()`, `LEMON_UartRxCallback()`
 
 ### Build
 
-v001.17, CRC `0xAFB6D7E8`, 29 warnings (30 before). text 90896 → 89040 (−1856 B), data 544 → 544,
-bss 23544 → 21312 (−2232 B), before = v001.16 code with `UHA_COMMON` before part A. TECHM, IOBOARD_D,
+v001.17, CRC `0xD99C6186`, 29 warnings (30 before). text 90896 → 89168 (−1728 B), data 544 → 544,
+bss 23544 → 21320 (−2224 B), before = v001.16 code with `UHA_COMMON` before part A. TECHM, IOBOARD_D,
 IOBOARD_U and ELECON_D (they compile `BMS.c` / its header) built against the branch: unchanged warnings.
+
+### Review (B.10)
+
+No blocking bug. Verified: GEMON validity and formulas, receivers of `BAT_SOC` (TECHM, RECU unchanged; ELECON_D
+rounds, see the proposal above), LEMON rename and pack mapping (80 Ah → `PackHome80Ah` = `BMS3_*`, 220 Ah →
+`PackHome220Ah` = `BMS2_*`), BMS / MPPT / SHUNT conversions, SCOM, wiring, concurrency, on_can list (10),
+tunnel for `on_can: false`, `test_tunnel`, `test_compat`. Fixed after the review:
+- GEMON `totalOptBalanceCurrent`: each storage term truncated to whole A again (the exact sum could raise the
+  optimal balancing current sent to TECHM by 1–2 A).
+- GEMON `LOAD_A` invalid until the load current was computed once (was a valid 0 A while the battery was not
+  yet valid).
+- `BMS.c`: the pack went invalid after 4 updates without a frame; now after `BMS_TIMEOUT_S` = 5.
+Noted: ELECON_D `LEMON.c` comment "rounded like the old int16 variable" is wrong (the sender truncated); fixed with
+the proposed ELECON_D follow-up.
