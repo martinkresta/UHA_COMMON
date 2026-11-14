@@ -243,3 +243,90 @@ Vars2.Meteo               IOBOARD_U METEO
   `StorageValid`. Report in ELECON Part B.
 - ELECON `MPPT.c` publishes everything always valid; a silent Victron freezes as valid.
 - ELECON_D `TotalCapacity_Ah = Pack1_Ah + Pack2_Ah` includes the unused slot; check when the slot is removed.
+
+## Part A — results (2026-11-14)
+
+### Engine and API (UHA_COMMON)
+
+- `Vars2`: every field `{value, valid}` (`sVarF32` / `sVarI32` / `sVarU32`, 8 B). `VarMeta.pVar` points to
+  the field; `mState` (private in `VARS2.c`) keeps only `RxTick` / `TxTick`.
+- TX: VARS2 sends every own `on_can` variable by `period_ms` (1 CAN frame per 10 ms, round robin, frame hook),
+  `VARS2_UpdateLocal_10ms(cb)` sends own `on_can: false` variables to the tunnel (unchanged API).
+- RX: value + valid from the frame; own ids and unknown ids are not stored (still passed to the hook);
+  `VARS2_Update_10ms()` clears `.valid` after `timeout_ms`.
+- Producer API: `VARS2_SetGroupValid(pGroup, valid)` (group or whole container), `VarSet(&field, v, valid)`,
+  `VARS2_SetById(VID_x, value, valid)` (own variables only).
+- `VARS2_Init()` sets all values 0 / invalid; it keeps the frame hook (ELECON calls `SCOM_Init()`, which
+  installs it, before `COM_Init()`).
+- Temporary (removed in part C): `VAR_SetVariable()` / `VAR_GetVariable()` wrappers (`LegacyScale` as
+  before), `VAR_Init()` / `VAR_EnableVars2Read()` no-ops, `COM_AddStreamedVariable()` no-op,
+  `COM_SendVariable()` → `VARS2_SendLegacy()` (own variables only). `Vars[]`, `sVar`, `NUM_OF_VARIABLES`,
+  `VAR_GetVariableLegacy()`, `VAR_GetVariablePointer()`, `VARS2_IsValid()`, `VARS2_SetValid()`,
+  `VARS2_ProcessFrame()`, `STREAM_LIST_SIZE` deleted (no users).
+- Shared modules: `TEMP_AssignSensor()`, `ELM_AddMeter()`, `sI2cSensor.VarId_1/2` take `eVarId`; values by id
+  in physical units. ELM `Wh` / `W` are `uint16_t`: the old wrapper path wrapped values > 32767 to negative,
+  now they are sent correctly (no difference below 32768). `METEO.c` moves with IOBOARD_U part B (only user;
+  `METEO_Init()` gets the group pointer, which changes the IOBOARD_U call).
+
+### Per node: old API calls the wrappers treat differently
+
+| Node | Call | Effect |
+|---|---|---|
+| TECHM | `APP.c:209` `VAR_SetVariable(VAR_BAT_VOLTAGE_V10, 520, 1)` | ignored (ELECON produces it); removed in TECHM part B |
+| TECHM | `SCOM.c:82` `NETWORK_STATUS` | ignored; SCOM removed in part B |
+| TECHM, ELECON | `SCOM.c` `CMD_SET_VAR_VALUE` (`data1 & 0x7FFF`) | own ids set as before, other ids ignored; removed in part B |
+| IOBOARD_D, IOBOARD_U | `SCOM.c:82` `NETWORK_STATUS` | ignored; SCOM never runs (init commented out), removed in part B |
+
+No variable is written before `COM_Init()` on any node (checked the `APP_Init()` order), so `VARS2_Init()`
+clearing `Vars2` loses nothing.
+
+### Per node: YAML `period_ms` vs `COM_AddStreamedVariable()`
+
+All periods identical on all six nodes, and every own `on_can` variable was streamed before
+(IOBOARD_D 12, IOBOARD_U 5, TECHM 31, ELECON 10, RECU 11, ELECON_D 76 variables). The YAML-driven TX sends
+exactly the same set at the same periods. Only the order of the frames within a period differs (round robin
+instead of list order).
+
+### Concurrency (all Vars2 access in the main loop?)
+
+- CAN RX: `COM_GetRxMessage()` in the main loop on all nodes; nothing in `stm32*_it.c` touches variables.
+- BMS UART callbacks (ELECON, ELECON_D `LEMON_UartRxCallback()` → `BMS_UartRxCallback()`): no variables.
+- **TECHM `WM.c` `WM_ExtiCallback()` (from `HAL_GPIO_EXTI_Callback()`, interrupt) calls
+  `VAR_SetVariable(VAR_CONS_COLD / VAR_CONS_HOT)`.** Question for Martin (TECHM part B); proposal: the
+  callback only counts (`mConsCold += 3`), `WM_Update` in the main loop publishes (it does already).
+
+### Check builds (CubeIDE GCC 13.3, `make all`, Deployment restored, version not bumped)
+
+| Node | Warnings main → branch | text main → branch | bss main → branch |
+|---|---|---|---|
+| IOBOARD_U | 21 → 21 | 46512 → 46808 (+296) | 42808 → 41032 (−1776) |
+| IOBOARD_D | 21 → 21 | 63428 → 63644 (+216) | 42640 → 40872 (−1768) |
+| RECU | 37 → 37 * | 65236 → 65312 (+76) | 9552 → 7784 (−1768) |
+| ELECON_D | 54 → 54 | 109420 → 109628 (+208) | 22744 → 20976 (−1768) |
+| TECHM | 28 → 28 | 60132 → 60220 (+88) | 10728 → 8960 (−1768) |
+| ELECON | 30 → 30 | 90896 → 91000 (+104) | 23544 → 21256 (−2288) |
+
+\* RECU compiles its own `UhaCommon/Src` copies but with `../../UHA_COMMON/Inc` first in the include path,
+so with the new shared headers it does **not** build until its `UhaCommon/` is synced (RECU part B step 1).
+Built in a scratch copy with the sync applied: OK (numbers above). The RECU repo is untouched.
+
+### PC tests (`VarDefs/tests`)
+
+`run_validator_tests` 72/72, `compile_check`, `test_vars2` (incl. wrapper round trip: 258 rows × 65536 raw
+values, 0 mismatches), `test_com` (YAML TX per node), `test_compat` (old `main` vs branch, 6 nodes, 9282 lines:
+CAN frames, tunnel frames, own read back, received reads, timeouts — identical), `test_tunnel`, `test_mcan`:
+all pass.
+
+### YAML readers outside the firmware (not changed, task A.8)
+
+The ids and `name`s did not change, so `uha.json` / `uha2.json` contents stay the same. But both readers
+walk `groups.<g>.vars` only; 101 of 258 values are now in `subgroups` (`GlobalEnergy`, `HomeEnergy`,
+`WorkshopEnergy`, `Meters`, `Recu`, `Temperatures`):
+
+- **UhaGatePy** `uhagatepy/vars_def.py` `_build()`: `group["vars"]` → `KeyError` → `VarsDefError`, the gateway
+  refuses to start. `deploy.sh` copies the YAML from the UHA_FW working tree: do not deploy before the
+  loader reads `subgroups` (producer from the subgroup, else the container).
+- **UhaCanMaster** `UhaCanCore/Decoding/VarCatalog.cs` `Parser`: groups without `vars` are skipped without
+  a warning, so those 101 values show as unknown ids. It reads the YAML from the UHA_FW working tree, i.e.
+  already now while `UHA_COMMON` is on this branch. `VarDefinition.Group` holds the group key (now
+  `GlobalEnergy` etc. / the subgroup key): display only.
