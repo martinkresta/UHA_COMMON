@@ -6,4 +6,4 @@ groups:
   g:
     producer: N1
     vars:
-      - {id: 65530, name: G_A, count: 6, period_ms: 1000}
+      - {id: 65530, name: G_A, field: GA, count: 6, period_ms: 1000}

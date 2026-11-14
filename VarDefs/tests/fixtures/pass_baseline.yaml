@@ -9,7 +9,7 @@ groups:
   g:
     producer: N1
     vars:
-      - {id: 1, name: G_POWER_W, unit: "W", period_ms: 1000}
-      - {id: 2, name: G_COUNT, type: int32, period_ms: 1000}
-      - {id: 3, name: G_MODE, type: enum, enum: Mode, period_ms: 1000}
-      - {id: 5, name: G_NEW, period_ms: 2000}
+      - {id: 1, name: G_POWER_W, field: GPower_W, unit: "W", period_ms: 1000}
+      - {id: 2, name: G_COUNT, field: GCount, type: int32, period_ms: 1000}
+      - {id: 3, name: G_MODE, field: GMode, type: enum, enum: Mode, period_ms: 1000}
+      - {id: 5, name: G_NEW, field: GNew, period_ms: 2000}

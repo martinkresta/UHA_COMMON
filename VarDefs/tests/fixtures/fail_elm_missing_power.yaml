@@ -3,7 +3,9 @@ version: 1
 nodes: {N1: 1, N2: 2, RPI: 15}
 defaults: {type: float, timeout_ms: auto, on_can: true}
 groups:
-  el_meters:
-    producer: N1
-    vars:
-      - {id: 60, name: CONS_FOO_WH, unit: "Wh", period_ms: 1000}
+  Meters:
+    subgroups:
+      N1:
+        producer: N1
+        vars:
+          - {id: 60, name: CONS_FOO_WH, field: ConsFoo_Wh, unit: "Wh", period_ms: 1000}

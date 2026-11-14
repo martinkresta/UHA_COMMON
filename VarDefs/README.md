@@ -31,33 +31,40 @@ scratch compile check).
 | `tools/vars_validate.py` | Validator (CLI + `validate()`); errors/warnings with YAML line numbers |
 | `tools/vars_gen_fw.py` | FW generator (CLI + `generate()`) |
 | `tools/gen_all.py` | Validate + generate |
-| `../Inc/VARS2_types.h` | Hand-written: `eVarType`, `sVarMeta`, flags |
+| `../Inc/VARS2_types.h` | Hand-written: `sVarF32`/`sVarI32`/`sVarU32` (`{value, valid}`), `eVarType`, `sVarMeta`, flags |
 | `../Inc/uha_vars_gen.h`, `../Src/uha_vars_gen.c` | **Generated – do not edit.** Compiled into every ASW project (new file: each project's `.project`/`.cproject` needs a linked-resource entry, same as the other `UHA_COMMON/Inc`/`Src` files) |
-| `../Inc/VARS2.h`, `../Src/VARS2.c` | Hand-written VARS2 module (RX/TX, validity, timeout) — see `VARS2_spec.md` |
+| `../Inc/VARS2.h`, `../Src/VARS2.c` | Hand-written VARS2 module (YAML-driven TX, RX into `Vars2`, timeout, `VARS2_SetGroupValid()`, `VarSet()`, `VARS2_SetById()`) — see `VARS2_spec.md` |
 | `tests/run_validator_tests.py` | Runs the validator on `tests/fixtures/` (`pass_*` / `fail_*`) |
 | `tests/compile_check.py` | Compiles the generated C with `gcc -std=c99 -Wall -Wextra -pedantic` on the PC (stubs in `tests/stub/`) and runs table consistency checks |
-| `tests/test_com.py` | PC test of `COM.c` (stubs in `tests/stub_com/`): only `0x180+node` is sent, a received `0x110+node` changes nothing; `--ref <old COM.c>` compares the stream timing with an older `COM.c` |
+| `tests/test_vars2.py` | PC test of `VARS2.c`: RX, timeout, group validity, by-id API, TX periods / pacing, tunnel callback, legacy wrapper round trip |
+| `tests/test_com.py` | PC test of `COM.c` (stubs in `tests/stub_com/`): every node's own `on_can` variables at their YAML period, only `0x180+node`, a received `0x110+node` changes nothing |
+| `tests/test_compat.py` | Old vs new: builds `tests/test_compat.c` with the sources of `--ref` (default `main`) and with the working tree; CAN / tunnel frames and `VAR_GetVariable()` results must be identical for all six nodes |
+| `tests/test_tunnel.py` | ELECON tunnel (`RPISERP.c`, `SCOM.c`) on top of VARS2 |
 
 ## What is generated
 
 - `eVarId` — `VID_<NAME> = <id>`; arrays expanded as `VID_<NAME>_1 .. _<count>`.
 - `e<Enum>` — `<Enum>_<Name> = <value>` for each YAML enum.
-- One struct per group, `sVars<Group>`, 4-byte fields only (float / int32_t / uint32_t;
-  bool and enum stored as uint32_t). Field names: CamelCase, unit suffix `_<Unit>` when the
-  last name token matches `unit`, the group's common name prefix dropped
-  (`BMS1_CELL_TEMP_C` in `bms1` → `CellTemp_C[16]`).
-- `sVars` with all groups, `extern sVars Vars2`, `VARS_COUNT`, `VAR_MAX_ID`, `VARS_ON_CAN_COUNT`.
-- `.c`: `Vars2`, `const sVarMeta VarMeta[]` (sorted by id: pointer, legacy scale, id, period,
-  timeout, legacy `VAR_*` id, type, producer `NODEID_*`, flags) and
-  `const uint16_t VarIdToIndex[VAR_MAX_ID + 1]` (`VAR_IDX_UNKNOWN` = 0xFFFF).
+- Group structs: every field is an 8-byte `{value, valid}` item (`sVarF32` for float,
+  `sVarI32` for int32 / bool / enum, `sVarU32` for uint32), field names from the YAML `field`.
+  One type per top-level group (`sVars<Group>`), or one per shared `struct` (`sVars<struct>`);
+  a container with `subgroups` gets one type per subgroup (`sVars<Group|struct><Subgroup>`) and
+  its own type with the subgroups as members. Access: `Vars2.GlobalEnergy.Battery.Soc_pct.value`.
+- `sVars` with all top-level groups, `extern sVars Vars2`, `VARS_COUNT`, `VAR_MAX_ID`,
+  `VARS_ON_CAN_COUNT`.
+- `.c`: `Vars2`, `const sVarMeta VarMeta[]` (sorted by id: pointer to the field, legacy scale, id,
+  period, timeout, legacy `VAR_*` id, type, producer `NODEID_*`, flags),
+  `const uint16_t VarIdToIndex[VAR_MAX_ID + 1]` (`VAR_IDX_UNKNOWN` = 0xFFFF) and compile-time size
+  checks: every struct is a plain array of 8-byte items, so `VARS2_SetGroupValid()` can walk it.
 
-The generated `.c` includes `VARS.h` and `MCAN.h` from `UHA_COMMON/Inc`. Since migration step 1
-it lives in `UHA_COMMON/Inc`/`Src` directly (those folders are compiled into every node), not in
-this `VarDefs/generated/` folder anymore.
+The generated `.c` includes `VARS.h` (legacy ids, until part C of the direct-access task) and
+`MCAN.h` from `UHA_COMMON/Inc`.
 
 ## Rules for changing the YAML
 
 - Never change the `id` or `type` of an existing variable; never reuse a removed id.
   Run with `--baseline` against the last released YAML to check.
-- Every value needs a producer (group or own) and `period_ms`.
+- Every group with `vars` has exactly one producer (on the group or its container, never on a
+  variable); every value needs `period_ms` and a `field` with the unit suffix.
+- Groups sharing a `struct` must have identical field lists.
 - Electricity meters: `CONS_x_WH` at id N needs `POW_x_W` at id N + 10 (ELM writes it there).

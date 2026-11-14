@@ -10,7 +10,7 @@
 #include "TEMP.h"
 #include "OW.h"
 #include "main.h"
-#include "VARS.h"
+#include "VARS2.h"
 #include "UI.h"
 
 
@@ -92,7 +92,7 @@ void TEMP_Update100ms(void)
 
 	if (mTimer == 0)
 	{
-		// copy results to VARS
+		// copy results to Vars2 (by id, temperature in degC)
 		int i;
 		for(i = 0; i < mNumOfAssignedSensors; i++)
 		{
@@ -102,13 +102,13 @@ void TEMP_Update100ms(void)
 			{
 				mSensors[i].errorCnt = 0;
 				mSensors[i].tempC_10ths = mSensors[i].rawTempC_10ths;  // copy the raw value to valid value
-				VAR_SetVariable(mSensors[i].VarId, mSensors[i].tempC_10ths, 1);
+				(void)VARS2_SetById(mSensors[i].VarId, (float)mSensors[i].tempC_10ths / 10.0f, 1);
 			}
 
 			if (mSensors[i].errorCnt > MAX_ERR_TO_INVALIDATE)
 			{
 				mSensors[i].errorCnt = 0;
-				VAR_SetVariable(mSensors[i].VarId, mSensors[i].tempC_10ths, 0);  // set invalid flag also to variables..
+				(void)VARS2_SetById(mSensors[i].VarId, (float)mSensors[i].tempC_10ths / 10.0f, 0);  // last valid value, invalid
 				// TBD LOG ERR
 			}
 
@@ -160,7 +160,7 @@ uint8_t TEMP_AddHwBus(uint8_t busId, GPIO_TypeDef* port, uint32_t pin)
 
 
 
-uint8_t TEMP_AssignSensor(uint8_t sensorId, uint16_t varId, uint8_t busId)
+uint8_t TEMP_AssignSensor(uint8_t sensorId, eVarId varId, uint8_t busId)
 {
 	if (mNumOfAssignedSensors < NUM_OF_ALL_SENSORS)
 	{

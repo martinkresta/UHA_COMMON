@@ -1,10 +1,15 @@
-# expect: ELM rule: POW_FOO_W producer N2 differs
+# expect: ELM rule: POW_FOO_W is in group Meters.N2, CONS_FOO_WH in Meters.N1 (must be the same group)
 version: 1
 nodes: {N1: 1, N2: 2, RPI: 15}
 defaults: {type: float, timeout_ms: auto, on_can: true}
 groups:
-  el_meters:
-    producer: N1
-    vars:
-      - {id: 60, name: CONS_FOO_WH, legacy: VAR_CONS_FOO_WH, unit: "Wh", period_ms: 1000}
-      - {id: 70, name: POW_FOO_W, legacy: VAR_POW_FOO_W, unit: "W", period_ms: 1000, producer: N2}
+  Meters:
+    subgroups:
+      N1:
+        producer: N1
+        vars:
+          - {id: 60, name: CONS_FOO_WH, field: FooCons_Wh, legacy: VAR_CONS_FOO_WH, unit: "Wh", period_ms: 1000}
+      N2:
+        producer: N2
+        vars:
+          - {id: 70, name: POW_FOO_W, field: FooPower_W, legacy: VAR_POW_FOO_W, unit: "W", period_ms: 1000}

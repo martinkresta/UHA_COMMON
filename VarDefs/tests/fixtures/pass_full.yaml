@@ -1,4 +1,5 @@
-# full valid definition: legacy, scale, enum, array, ELM pair, per-var producer, receivers
+# full valid definition: legacy, scale, enum, array, ELM pair, container with subgroups,
+# shared struct, per_field validity, producer per subgroup, receivers
 version: 1
 nodes:
   N1: 1
@@ -8,18 +9,37 @@ defaults: {type: float, timeout_ms: auto, on_can: true}
 enums:
   HeaterState: {0: "Off", 1: Heating, 2: 48VFail}
 groups:
-  energy:
+  Energy:
     producer: N1
+    subgroups:
+      Battery:
+        vars:
+          - {id: 10, name: BAT_SOC, field: Soc_pct, legacy: VAR_BAT_SOC, unit: "%", period_ms: 1000, receivers: [N2, RPI]}
+          - {id: 11, name: BAT_VOLTAGE_V, field: Voltage_V, legacy: VAR_BAT_VOLTAGE_V10, unit: "V", legacy_scale: 10, period_ms: 1000}
+      Cells:
+        vars:
+          - {id: 20, name: BAT_CELL_V, field: Cell_V, count: 3, legacy: "VAR_CELL{1..3}_MV", unit: "V", legacy_scale: 1000, period_ms: 5000}
+  PackA:
+    producer: N1
+    struct: Pack
     vars:
-      - {id: 10, name: BAT_SOC, legacy: VAR_BAT_SOC, unit: "%", period_ms: 1000, receivers: [N2, RPI]}
-      - {id: 11, name: BAT_VOLTAGE_V, legacy: VAR_BAT_VOLTAGE_V10, unit: "V", legacy_scale: 10, period_ms: 1000}
-      - {id: 20, name: BAT_CELL_V, count: 3, legacy: "VAR_CELL{1..3}_MV", unit: "V", legacy_scale: 1000, period_ms: 5000}
-  el_meters:
+      - {id: 30, name: PACKA_SOC, field: Soc_pct, unit: "%", period_ms: 1000}
+      - {id: 31, name: PACKA_BALANCED, field: Balanced, type: bool, period_ms: 1000}
+  PackB:
+    producer: N2
+    struct: Pack
+    vars:
+      - {id: 35, name: PACKB_SOC, field: Soc_pct, unit: "%", period_ms: 3000, on_can: false}
+      - {id: 36, name: PACKB_BALANCED, field: Balanced, type: bool, period_ms: 3000, on_can: false}
+  Meters:
+    subgroups:
+      N2:
+        producer: N2
+        validity: per_field
+        vars:
+          - {id: 60, name: CONS_FOO_WH, field: FooCons_Wh, legacy: VAR_CONS_FOO_WH, unit: "Wh", period_ms: 3000}
+          - {id: 70, name: POW_FOO_W, field: FooPower_W, legacy: VAR_POW_FOO_W, unit: "W", period_ms: 3000, timeout_ms: 10000}
+  Heater:
     producer: N2
     vars:
-      - {id: 60, name: CONS_FOO_WH, legacy: VAR_CONS_FOO_WH, unit: "Wh", period_ms: 3000}
-      - {id: 70, name: POW_FOO_W, legacy: VAR_POW_FOO_W, unit: "W", period_ms: 3000, timeout_ms: 10000}
-  heater:
-    producer: N1
-    vars:
-      - {id: 80, name: HEATER_STATE, legacy: VAR_HEATER_STATE, type: enum, enum: HeaterState, period_ms: 3000, producer: N2, on_can: false}
+      - {id: 80, name: HEATER_STATE, field: State, legacy: VAR_HEATER_STATE, type: enum, enum: HeaterState, period_ms: 3000, on_can: false}

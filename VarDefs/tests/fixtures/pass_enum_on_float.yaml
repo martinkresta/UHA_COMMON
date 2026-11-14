@@ -8,4 +8,4 @@ groups:
   g:
     producer: N1
     vars:
-      - {id: 1, name: G_MODE, enum: Mode, period_ms: 1000}
+      - {id: 1, name: G_MODE, field: GMode, enum: Mode, period_ms: 1000}

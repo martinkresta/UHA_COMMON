@@ -6,4 +6,4 @@ groups:
   g:
     producer: N1
     vars:
-      - {id: 98, name: G_X, legacy: VAR_WRONG_ID, period_ms: 1000}
+      - {id: 98, name: G_X, field: GX, legacy: VAR_WRONG_ID, period_ms: 1000}

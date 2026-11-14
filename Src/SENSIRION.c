@@ -7,7 +7,7 @@
 
 
 #include "sensirion.h"
-#include "VARS.h"
+#include "VARS2.h"
 #include "main.h"
 
 
@@ -106,16 +106,8 @@ void SENS_Update_1s(void)
        if(0 == Read_SHT4x(&(mSensors[i]),&temp, &hum)) valid = 1;
        else valid = 0;
        if (temp == -1 && hum == -1)  valid = 0;
-       if(valid)
-       {
-         VAR_SetVariable(mSensors[i].VarId_1, temp, 1);
-         VAR_SetVariable(mSensors[i].VarId_2, hum, 1);
-       }
-       else
-       {
-         VAR_SetVariable(mSensors[i].VarId_1, temp, 0);
-         VAR_SetVariable(mSensors[i].VarId_2, hum, 0);
-       }
+       (void)VARS2_SetById(mSensors[i].VarId_1, (float)temp / 10.0f, valid);   // temp in 0.1 degC
+       (void)VARS2_SetById(mSensors[i].VarId_2, (float)hum, valid);            // RH in %
        break;
 
      case st_SCD4x:
@@ -124,14 +116,7 @@ void SENS_Update_1s(void)
          if(0 == SCD4x_Read(&(mSensors[i]),&co2, &temp, &hum)) valid = 1;
          else valid = 0;
          if (co2 == -1)  valid = 0;
-         if(valid)
-         {
-           VAR_SetVariable(mSensors[i].VarId_1, co2, 1);
-         }
-         else
-         {
-           VAR_SetVariable(mSensors[i].VarId_1, co2, 0);
-         }
+         (void)VARS2_SetById(mSensors[i].VarId_1, (float)co2, valid);   // ppm
        }
        break;
 
@@ -143,14 +128,7 @@ void SENS_Update_1s(void)
        if(0 == SDPx_Read(&(mSensors[i]), &dp)) valid = 1;
        else valid = 0;
       // if (dp == -1)  valid = 0;
-       if(valid)
-       {
-         VAR_SetVariable(mSensors[i].VarId_1, dp, 1);
-       }
-       else
-       {
-         VAR_SetVariable(mSensors[i].VarId_1, dp, 0);
-       }
+       (void)VARS2_SetById(mSensors[i].VarId_1, (float)dp, valid);   // Pa
        break;
     }
   }

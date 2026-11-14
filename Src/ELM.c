@@ -8,7 +8,7 @@
 
 #include "ELM.h"
 #include "stdlib.h"
-#include "VARS.h"
+#include "VARS2.h"
 
 
 sElMeter*  mMeters;
@@ -25,7 +25,7 @@ void ELM_Init(uint8_t numOfMeters)
 	}
 }
 
-void ELM_AddMeter(uint8_t ElmId, uint32_t pin, uint16_t VarId)
+void ELM_AddMeter(uint8_t ElmId, uint32_t pin, eVarId VarId)
 {
 	if(ElmId < mNumOfMeters)
 	{
@@ -61,8 +61,8 @@ void ELM_Update_1s(void)
 			}
 		}
 
-		VAR_SetVariable(mMeters[i].VarId, mMeters[i].Wh, 1);
-		VAR_SetVariable(mMeters[i].VarId + 10, mMeters[i].W, 1);
+		(void)VARS2_SetById(mMeters[i].VarId, (float)mMeters[i].Wh, 1);
+		(void)VARS2_SetById((eVarId)(mMeters[i].VarId + 10), (float)mMeters[i].W, 1);   // ELM rule: power at energy id + 10
 	}
 }
 

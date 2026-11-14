@@ -8,5 +8,6 @@ groups:
     vars:
       - id: 1
         name: G_A
+        field: GA
         id: 2
         period_ms: 1000

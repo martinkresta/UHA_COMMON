@@ -1,454 +1,447 @@
 /*
- * test_vars2.c - PC unit test for VARS2.c (UHA_COMMON/Src/VARS2.c).
+ * test_vars2.c - PC unit test for VARS2.c (direct access: Vars2 with {value, valid}).
  *
- * Mocks HAL_GetTick() (settable), VAR_GetVariable() (backed by a small
- * array instead of real VARS.c) and MCAN_SendFrame() (records the last
- * frame) so VARS2.c can be exercised without any target hardware and
- * without linking VARS.c/MCAN.c. Run via tests/test_vars2.py.
+ * Real VARS2.c + uha_vars_gen.c; HAL_GetTick() and MCAN_SendFrame() are
+ * mocked. Covers RX into Vars2, receive timeout, own values never overwritten,
+ * VARS2_SetGroupValid() on groups and containers, VarSet(), VARS2_SetById(),
+ * YAML-driven TX (periods, 1 CAN frame per 10 ms, frame hook, tunnel callback)
+ * and the legacy wrapper round trip. Run via tests/test_vars2.py.
  */
 
 #include <stdio.h>
 #include <string.h>
 #include "uha_vars_gen.h"
 #include "VARS2.h"
-#include "VARS.h"
 #include "MCAN.h"
 
 static int fails = 0;
 static int checks = 0;
 #define CHECK(c) do { checks++; if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); fails++; } } while (0)
 
-/* ---- HAL_GetTick() mock ---- */
-static uint32_t gMockTick = 0;
-uint32_t HAL_GetTick(void) { return gMockTick; }
-static void SetTick(uint32_t t) { gMockTick = t; }
+/* ---- mocks ---- */
+static uint32_t gTick;
+uint32_t HAL_GetTick(void) { return gTick; }
 
-/* ---- VAR_GetVariable() mock: backs the old Vars[] with a plain array ---- */
-static int16_t gRaw[NUM_OF_VARIABLES];
-static uint8_t gValid[NUM_OF_VARIABLES];   /* 1 = valid */
-
-static void SetVar(uint16_t id, int16_t raw, uint8_t valid)
-{
-	gRaw[id] = raw;
-	gValid[id] = valid;
-}
-
-int16_t VAR_GetVariableLegacy(uint16_t varId, uint16_t* invalid)
-{
-	if (varId < NUM_OF_VARIABLES)
-	{
-		if (gValid[varId] == 0 && invalid != NULL) *invalid |= INVALID_FLAG;
-		return gRaw[varId];
-	}
-	if (invalid != NULL) *invalid |= INVALID_FLAG;
-	return 0;
-}
-
-/* ---- MCAN_SendFrame() mock: records the last queued frame ---- */
-static int gSendCount;
-static uint16_t gLastCobid;
-static uint8_t gLastData[8];
-
+#define MAXTX 4000
+typedef struct { uint32_t tick; uint16_t cobid; uint8_t data[8]; } sTx;
+static sTx gTx[MAXTX];
+static int gTxN;
 uint8_t MCAN_SendFrame(uint16_t cobid, uint8_t* data, uint8_t dlc)
 {
-	gSendCount++;
-	gLastCobid = cobid;
-	memcpy(gLastData, data, dlc <= 8 ? dlc : 8);
+	if (gTxN < MAXTX)
+	{
+		gTx[gTxN].tick = gTick;
+		gTx[gTxN].cobid = cobid;
+		memcpy(gTx[gTxN].data, data, dlc <= 8 ? dlc : 8);
+		gTxN++;
+	}
 	return 1;
 }
 
-/* ---- helpers ---- */
-static int feq(float a, float b)
-{
-	float d = a - b;
-	if (d < 0) d = -d;
-	return d < 1e-4f;
-}
-
-static void BuildRxFrame(uint8_t* frame, uint16_t id, const void* value4, uint8_t valid)
-{
-	frame[0] = (uint8_t)(id & 0xFFu);
-	frame[1] = (uint8_t)(id >> 8);
-	memcpy(&frame[2], value4, 4);
-	frame[6] = valid ? 0x01u : 0u;
-	frame[7] = 0;
-}
-
-static void test_rx_known_id(void)
-{
-	uint8_t frame[8];
-	float v = 53.2f;
-
-	VARS2_Init(NODEID_ELECON_D);
-	SetTick(1000);
-
-	BuildRxFrame(frame, VID_BAT_VOLTAGE_V, &v, 1);
-	VARS2_ProcessFrame(frame);
-
-	CHECK(feq(Vars2.GlobalEnergy.BatVoltage_V, 53.2f));
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 1);
-}
-
-static void test_rx_unknown_id_ignored(void)
-{
-	sVars before, after;
-	uint8_t frame[8];
-	float garbage = 999.0f;
-
-	VARS2_Init(NODEID_ELECON_D);
-	SetTick(2000);
-	memcpy(&before, &Vars2, sizeof(sVars));
-
-	/* id 0 and id 2 (unused) both have no VARS2 definition */
-	BuildRxFrame(frame, 0, &garbage, 1);
-	VARS2_ProcessFrame(frame);
-	BuildRxFrame(frame, 2, &garbage, 1);
-	VARS2_ProcessFrame(frame);
-	/* id just above VAR_MAX_ID must also be rejected without touching VarIdToIndex out of bounds */
-	BuildRxFrame(frame, VAR_MAX_ID + 1, &garbage, 1);
-	VARS2_ProcessFrame(frame);
-
-	memcpy(&after, &Vars2, sizeof(sVars));
-	CHECK(memcmp(&before, &after, sizeof(sVars)) == 0);   /* no state anywhere changed, no crash */
-}
-
-static void test_rx_valid_flag_bit(void)
-{
-	uint8_t frame[8];
-	float v1 = 53.2f, v2 = 44.4f;
-
-	VARS2_Init(NODEID_ELECON_D);
-	SetTick(3000);
-	BuildRxFrame(frame, VID_BAT_VOLTAGE_V, &v1, 1);
-	VARS2_ProcessFrame(frame);
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 1);
-
-	BuildRxFrame(frame, VID_BAT_VOLTAGE_V, &v2, 0);   /* VALID bit clear */
-	VARS2_ProcessFrame(frame);
-	CHECK(feq(Vars2.GlobalEnergy.BatVoltage_V, 44.4f));   /* value is still written */
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 0);          /* but now invalid */
-}
-
-static void test_rx_timeout(void)
-{
-	uint8_t frame[8];
-	float v = 53.2f;
-	uint32_t t0 = 5000;
-	uint16_t timeoutMs = VarMeta[VarIdToIndex[VID_BAT_VOLTAGE_V]].TimeoutMs;   /* 3000 */
-
-	VARS2_Init(NODEID_ELECON_D);
-	SetTick(t0);
-	BuildRxFrame(frame, VID_BAT_VOLTAGE_V, &v, 1);
-	VARS2_ProcessFrame(frame);
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 1);
-
-	SetTick(t0 + timeoutMs);        /* exactly at the boundary: still valid */
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 1);
-
-	SetTick(t0 + timeoutMs + 1);    /* past it: timed out, even though Valid bit was 1 */
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 0);
-}
-
-static void test_sendlegacy_float_scale10(void)
-{
-	float sent;
-
-	VARS2_Init(NODEID_ELECON);
-	SetVar(VAR_BAT_VOLTAGE_V10, 532, 1);
-	gSendCount = 0;
-	VARS2_SendLegacy(VAR_BAT_VOLTAGE_V10);
-
-	CHECK(gSendCount == 1);
-	CHECK(feq(Vars2.GlobalEnergy.BatVoltage_V, 53.2f));
-	CHECK(gLastCobid == 0x180u + NODEID_ELECON);
-	CHECK(gLastData[0] == (VID_BAT_VOLTAGE_V & 0xFFu));
-	CHECK(gLastData[1] == (VID_BAT_VOLTAGE_V >> 8));
-	memcpy(&sent, &gLastData[2], 4);
-	CHECK(sent == Vars2.GlobalEnergy.BatVoltage_V);   /* frame bytes == what landed in Vars2, bit-identical */
-	CHECK(gLastData[6] == 0x01u);                      /* valid, bits1-7 = 0 */
-	CHECK(gLastData[7] == 0);                          /* seq, reserved */
-}
-
-static void test_sendlegacy_float_scale1000(void)
-{
-	float sent;
-
-	VARS2_Init(NODEID_ELECON_D);
-	SetVar(VAR_BMS1_CELL8_MV, 3326, 1);
-	gSendCount = 0;
-	VARS2_SendLegacy(VAR_BMS1_CELL8_MV);
-
-	CHECK(gSendCount == 1);
-	CHECK(feq(Vars2.Bms1.Cell_V[7], 3.326f));            /* id 187 = 8th cell, index 7 */
-	CHECK(gLastData[0] == (VID_BMS1_CELL_V_8 & 0xFFu));
-	CHECK(gLastData[1] == (VID_BMS1_CELL_V_8 >> 8));
-	memcpy(&sent, &gLastData[2], 4);
-	CHECK(sent == Vars2.Bms1.Cell_V[7]);
-	CHECK(gLastData[6] == 0x01u);
-}
-
-static void test_sendlegacy_float_scale_point1(void)
-{
-	/* VAR_SOLAR_ENERGY_TODAY_10WH: legacy_scale 0.1 -> raw / 0.1 == raw * 10 */
-	VARS2_Init(NODEID_ELECON);
-	SetVar(VAR_SOLAR_ENERGY_TODAY_10WH, 1234, 1);
-	gSendCount = 0;
-	VARS2_SendLegacy(VAR_SOLAR_ENERGY_TODAY_10WH);
-
-	CHECK(gSendCount == 1);
-	CHECK(feq(Vars2.GlobalEnergy.SolarEnergyToday_Wh, 12340.0f));
-}
-
-static void test_sendlegacy_bool(void)
-{
-	uint32_t sent;
-
-	VARS2_Init(NODEID_ELECON_D);
-	SetVar(VAR_STRG2_BALANCED_TODAY, 1, 1);
-	gSendCount = 0;
-	VARS2_SendLegacy(VAR_STRG2_BALANCED_TODAY);
-
-	CHECK(gSendCount == 1);
-	CHECK(Vars2.Storage2.Strg2BalancedToday == 1u);   /* integer value of raw, not scaled */
-	memcpy(&sent, &gLastData[2], 4);
-	CHECK(sent == 1u);
-	CHECK(gLastData[6] == 0x01u);
-
-	SetVar(VAR_STRG2_BALANCED_TODAY, 0, 0);   /* also check invalid -> flags bit0 clear, value still updated */
-	VARS2_SendLegacy(VAR_STRG2_BALANCED_TODAY);
-	CHECK(Vars2.Storage2.Strg2BalancedToday == 0u);
-	CHECK(gLastData[6] == 0x00u);
-}
-
-static void test_sendlegacy_enum(void)
-{
-	VARS2_Init(NODEID_TECHM);
-	SetVar(VAR_EL_HEATER_STATUS, ElHeaterState_LowSOC, 1);
-	gSendCount = 0;
-	VARS2_SendLegacy(VAR_EL_HEATER_STATUS);
-
-	CHECK(gSendCount == 1);
-	CHECK(Vars2.ElHeater.Status == (uint32_t)ElHeaterState_LowSOC);
-	CHECK(gLastCobid == 0x180u + NODEID_TECHM);
-}
-
-static void test_sendlegacy_unmapped_noop(void)
-{
-	VARS2_Init(NODEID_ELECON);
-	SetVar(2, 7, 1);   /* valid Vars[] index, no VARS2 definition */
-	gSendCount = 0;
-	VARS2_SendLegacy(2);
-	CHECK(gSendCount == 0);
-
-	VARS2_SendLegacy((uint16_t)(VAR_MAX_ID + 1));   /* out of range id altogether */
-	CHECK(gSendCount == 0);
-}
-
-static void test_setvalid_roundtrip(void)
-{
-	uint8_t frame[8];
-	float v = 53.2f;
-
-	VARS2_Init(NODEID_ELECON_D);
-	SetTick(1000);
-	BuildRxFrame(frame, VID_BAT_VOLTAGE_V, &v, 1);
-	VARS2_ProcessFrame(frame);
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 1);
-
-	VARS2_SetValid(VID_BAT_VOLTAGE_V, 0);
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 0);
-
-	VARS2_SetValid(VID_BAT_VOLTAGE_V, 1);
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 1);
-}
-
-static void test_default_valid_after_init(void)
-{
-	/* spec sec.4: "default after start = valid" - nothing has touched this
-	 * value, tick has not advanced since VARS2_Init(), yet IsValid() is true */
-	SetTick(9000);
-	VARS2_Init(NODEID_ELECON);
-	CHECK(VARS2_IsValid(VID_SHUNT_PCK2_CURRENT_A) == 1);
-}
-
-
-/* ---- step 2: frame hook, DLC/RTR check, own state, ELECON-local publishing ---- */
-static int gHookCount;
-static uint16_t gHookCob;
+static int gHookN;
+static uint16_t gHookCobid;
 static uint8_t gHookData[8];
-static void TestHook(uint16_t cobId, const uint8_t* d)
+static void Hook(uint16_t cobid, const uint8_t* data)
 {
-	gHookCount++;
-	gHookCob = cobId;
-	memcpy(gHookData, d, 8);
+	gHookN++;
+	gHookCobid = cobid;
+	memcpy(gHookData, data, 8);
 }
 
-static void test_rx_dlc_rtr_rejected(void)
+static int gLocN;
+static uint16_t gLocIds[MAXTX];
+static uint32_t gLocTick[MAXTX];
+static void LocalCb(uint16_t cobid, const uint8_t* data)
 {
-	uint8_t frame[8];
-	float v = 53.2f, other = 11.1f;
-
-	VARS2_Init(NODEID_ELECON_D);
-	VARS2_SetFrameHook(TestHook);
-	memset(&Vars2, 0, sizeof(Vars2));
-	SetTick(1000);
-	gHookCount = 0;
-
-	BuildRxFrame(frame, VID_BAT_VOLTAGE_V, &v, 1);
-	CHECK(VARS2_ProcessRxFrame(0x181, 7, 0, frame) == 0);   /* DLC != 8 */
-	CHECK(VARS2_ProcessRxFrame(0x181, 0, 0, frame) == 0);
-	CHECK(VARS2_ProcessRxFrame(0x181, 8, 1, frame) == 0);   /* RTR */
-	CHECK(gHookCount == 0);                                  /* not forwarded either */
-	CHECK(!feq(Vars2.GlobalEnergy.BatVoltage_V, 53.2f));     /* not stored */
-
-	CHECK(VARS2_ProcessRxFrame(0x181, 8, 0, frame) == 1);   /* good frame */
-	CHECK(gHookCount == 1 && gHookCob == 0x181);
-	CHECK(memcmp(gHookData, frame, 8) == 0);                 /* data bytes unchanged */
-	CHECK(feq(Vars2.GlobalEnergy.BatVoltage_V, 53.2f));
-
-	/* unknown id: not stored, but still forwarded (the RPi decides) */
-	BuildRxFrame(frame, VAR_MAX_ID + 1, &other, 1);
-	gHookCount = 0;
-	CHECK(VARS2_ProcessRxFrame(0x182, 8, 0, frame) == 1);
-	CHECK(gHookCount == 1 && gHookCob == 0x182);
-	VARS2_SetFrameHook(NULL);
-}
-
-static void test_tx_hook_and_own_state(void)
-{
-	uint32_t t = 100000;
-
-	VARS2_Init(NODEID_ELECON);
-	VARS2_SetFrameHook(TestHook);
-	SetTick(t);
-	SetVar(VAR_BAT_VOLTAGE_V10, 532, 1);
-	gHookCount = 0;
-	VARS2_SendLegacy(VAR_BAT_VOLTAGE_V10);
-	CHECK(gHookCount == 1 && gHookCob == 0x184);
-	CHECK(memcmp(gHookData, gLastData, 8) == 0);   /* same bytes as sent on CAN */
-
-	/* own value does not time out as long as it is being sent */
-	SetTick(t + 2000);
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 1);
-	VARS2_SendLegacy(VAR_BAT_VOLTAGE_V10);
-	SetTick(t + 4000);   /* 2 s after the last send, timeout is 3 s */
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 1);
-	SetTick(t + 5001);   /* 3 s + 1 after the last send */
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 0);
-
-	/* producer-side invalid propagates to the own state */
-	SetVar(VAR_BAT_VOLTAGE_V10, 0, 0);
-	VARS2_SendLegacy(VAR_BAT_VOLTAGE_V10);
-	CHECK(VARS2_IsValid(VID_BAT_VOLTAGE_V) == 0);
-	VARS2_SetFrameHook(NULL);
-}
-
-static int gLocCount[VAR_MAX_ID + 1];
-static int gLocOther;
-static uint8_t gLocLast[VAR_MAX_ID + 1][8];
-static void LocalCb(uint16_t cobId, const uint8_t* d)
-{
-	uint16_t id = (uint16_t)d[0] | ((uint16_t)d[1] << 8);
-	if (cobId != 0x184 || id > VAR_MAX_ID) { gLocOther++; return; }
-	gLocCount[id]++;
-	memcpy(gLocLast[id], d, 8);
-}
-
-static void test_local_publishing(void)
-{
-	uint16_t i, nLocal = 0;
-	uint32_t t, maxPerTick = 0;
-
-	VARS2_Init(NODEID_ELECON);
-	memset(gLocCount, 0, sizeof(gLocCount));
-	gLocOther = 0;
-	for (i = 0; i < NUM_OF_VARIABLES; i++) { gRaw[i] = (int16_t)(i + 1); gValid[i] = 1; }
-	gValid[VAR_SOLAR_POWER_W] = 0;   /* one invalid local variable */
-	gSendCount = 0;
-
-	SetTick(500000);
-	for (t = 0; t < 60000; t += 10)
+	(void)cobid;
+	if (gLocN < MAXTX)
 	{
-		int c0 = 0, c1 = 0;
-		for (i = 0; i <= VAR_MAX_ID; i++) c0 += gLocCount[i];
-		SetTick(500000 + t);
-		VARS2_UpdateLocal_10ms(LocalCb);
-		for (i = 0; i <= VAR_MAX_ID; i++) c1 += gLocCount[i];
-		if ((uint32_t)(c1 - c0) > maxPerTick) maxPerTick = (uint32_t)(c1 - c0);
+		gLocIds[gLocN] = (uint16_t)(data[0] | (data[1] << 8));
+		gLocTick[gLocN] = gTick;
+		gLocN++;
 	}
-	CHECK(gSendCount == 0);        /* nothing on CAN */
-	CHECK(gLocOther == 0);         /* all with packet id 0x184 */
-	CHECK(maxPerTick <= 4);        /* burst bounded */
+}
 
+/* ---- helpers ---- */
+static const sVarMeta* Meta(uint16_t id) { return &VarMeta[VarIdToIndex[id]]; }
+
+static void Frame(uint8_t* f, uint16_t id, const void* value4, uint8_t valid)
+{
+	f[0] = (uint8_t)(id & 0xFFu);
+	f[1] = (uint8_t)(id >> 8);
+	memcpy(&f[2], value4, 4);
+	f[6] = valid ? 1u : 0u;
+	f[7] = 0;
+}
+
+static void Reset(uint8_t node)
+{
+	gTick = 5000;
+	gTxN = 0;
+	gHookN = 0;
+	gLocN = 0;
+	VARS2_Init(node);
+}
+
+static void Run(uint32_t ms)
+{
+	uint32_t t;
+	for (t = 0; t < ms; t += 10)
+	{
+		gTick += 10;
+		VARS2_Update_10ms();
+	}
+}
+
+/* ---- tests ---- */
+static void test_init(void)
+{
+	uint16_t i;
+	int allInvalid = 1;
+	Vars2.GlobalEnergy.Battery.Soc_pct.value = 12.0f;
+	Vars2.GlobalEnergy.Battery.Soc_pct.valid = 1;
+	Reset(NODEID_TECHM);
 	for (i = 0; i < VARS_COUNT; i++)
 	{
-		const sVarMeta* m = &VarMeta[i];
-		int expect;
-		if (m->Producer != NODEID_ELECON || (m->Flags & VMF_ON_CAN) || m->PeriodMs == 0)
-		{
-			CHECK(gLocCount[m->Id] == 0);   /* CAN vars / foreign producers never published locally */
-			continue;
-		}
-		nLocal++;
-		expect = 60000 / m->PeriodMs;
-		CHECK(gLocCount[m->Id] >= expect - 1 && gLocCount[m->Id] <= expect + 1);
+		if (((const uint8_t*)VarMeta[i].pVar)[VAR_VALID_OFFSET] != 0) allInvalid = 0;
 	}
-	CHECK(nLocal > 40);
-	printf("local non-CAN variables: %u\n", nLocal);
+	CHECK(allInvalid);
+	CHECK(Vars2.GlobalEnergy.Battery.Soc_pct.value == 0.0f);
+}
 
-	/* conversion identical to VARS2_SendLegacy: BatEnergy id16 raw 17, scale 1 */
-	CHECK(gLocLast[16][6] == 0x01u);
-	{
-		float f; memcpy(&f, &gLocLast[16][2], 4);
-		CHECK(feq(f, 17.0f));
-		CHECK(feq(Vars2.GlobalEnergy.BatEnergy_Wh, 17.0f));
-	}
-	CHECK(gLocLast[VAR_SOLAR_POWER_W][6] == 0x00u);   /* invalid -> flag clear */
-	CHECK(gLocCount[10] == 0);   /* id 10 = BatSoc is on CAN */
+static void test_rx(void)
+{
+	uint8_t f[8];
+	float v = 53.2f;
+	int32_t e = 3;
+	const sVarsGlobalEnergy* pGe = &Vars2.GlobalEnergy;   /* how a reader sees it */
 
-	/* NETWORK_STATUS (id 1, uint32, 5 s, not on CAN): tunnel only, every 5 s, bitmask as uint32 */
-	CHECK(gLocCount[VAR_NETWORK_STATUS] >= 11 && gLocCount[VAR_NETWORK_STATUS] <= 13);
-	{
-		uint32_t u;
-		SetVar(VAR_NETWORK_STATUS, 0xFE, 1);   /* nodes 1..7 in NMT RUN (COM_GetNetworkStatus) */
-		memset(gLocLast[VAR_NETWORK_STATUS], 0, 8);
-		for (t = 60000; t < 66000; t += 10) { SetTick(500000 + t); VARS2_UpdateLocal_10ms(LocalCb); }
-		memcpy(&u, &gLocLast[VAR_NETWORK_STATUS][2], 4);
-		CHECK(u == 0xFEu);
-		CHECK(gLocLast[VAR_NETWORK_STATUS][6] == 0x01u);
-		CHECK(Vars2.System.NetworkStatus == 0xFEu);
-		CHECK(gSendCount == 0);   /* still nothing on CAN */
-	}
+	VARS2_SetFrameHook(Hook);
+	Reset(NODEID_TECHM);   /* the hook survives VARS2_Init() (ELECON: SCOM_Init() before COM_Init()) */
 
-	/* a node other than ELECON publishes nothing local */
+	Frame(f, VID_BAT_SOC, &v, 1);
+	CHECK(VARS2_ProcessRxFrame(0x184, 8, 0, f) == 1);
+	CHECK(pGe->Battery.Soc_pct.value == 53.2f);
+	CHECK(pGe->Battery.Soc_pct.valid == 1);
+	CHECK(gHookN == 1 && gHookCobid == 0x184 && memcmp(gHookData, f, 8) == 0);
+
+	v = -12.5f;
+	Frame(f, VID_BAT_CURRENT_A, &v, 0);   /* invalid in the frame */
+	VARS2_ProcessRxFrame(0x184, 8, 0, f);
+	CHECK(pGe->Battery.Current_A.value == -12.5f && pGe->Battery.Current_A.valid == 0);
+
+	/* integer type, array element, nested container */
+	Frame(f, VID_STRG2_BALANCED_TODAY, &e, 1);
+	VARS2_ProcessRxFrame(0x187, 8, 0, f);
+	CHECK(Vars2.WorkshopEnergy.Storage.BalancedToday.value == 3 && Vars2.WorkshopEnergy.Storage.BalancedToday.valid == 1);
+	v = 3.301f;
+	Frame(f, VID_BMS3_CELL_V_16, &v, 1);
+	VARS2_ProcessRxFrame(0x184, 8, 0, f);
+	CHECK(Vars2.PackHome80Ah.CellVoltage_V[15].value == 3.301f && Vars2.PackHome80Ah.CellVoltage_V[15].valid == 1);
+
+	/* own value is never overwritten, unknown id ignored, both still go to the hook */
+	Vars2.Temperatures.Techm.Board_C.value = 31.5f;
+	Vars2.Temperatures.Techm.Board_C.valid = 1;
+	v = -99.0f;
+	Frame(f, VID_TEMP_TECHM_BOARD_C, &v, 0);
+	gHookN = 0;
+	CHECK(VARS2_ProcessRxFrame(0x183, 8, 0, f) == 1);
+	CHECK(Vars2.Temperatures.Techm.Board_C.value == 31.5f && Vars2.Temperatures.Techm.Board_C.valid == 1);
+	Frame(f, 2, &v, 1);   /* id 2: no variable */
+	CHECK(VARS2_ProcessRxFrame(0x184, 8, 0, f) == 1);
+	CHECK(gHookN == 2);
+
+	/* malformed: dropped, no hook */
+	gHookN = 0;
+	Frame(f, VID_BAT_SOC, &v, 1);
+	CHECK(VARS2_ProcessRxFrame(0x184, 7, 0, f) == 0);
+	CHECK(VARS2_ProcessRxFrame(0x184, 8, 1, f) == 0);
+	CHECK(gHookN == 0 && pGe->Battery.Soc_pct.value == 53.2f);
+	VARS2_SetFrameHook(NULL);
+}
+
+static void test_timeout(void)
+{
+	uint8_t f[8];
+	float v = 20.0f;
+	uint32_t tout = Meta(VID_TEMP_OUTSIDE_C)->TimeoutMs;   /* 9000 */
+
+	Reset(NODEID_RECU);
+	Frame(f, VID_TEMP_OUTSIDE_C, &v, 1);
+	VARS2_ProcessRxFrame(0x184, 8, 0, f);
+	Run(tout - 10);
+	CHECK(Vars2.Temperatures.Elecon.Outside_C.valid == 1);
+	Run(20);
+	CHECK(Vars2.Temperatures.Elecon.Outside_C.valid == 0);
+	CHECK(Vars2.Temperatures.Elecon.Outside_C.value == 20.0f);   /* last value kept */
+	VARS2_ProcessRxFrame(0x184, 8, 0, f);                        /* a new frame: valid again */
+	CHECK(Vars2.Temperatures.Elecon.Outside_C.valid == 1);
+
+	/* own values do not time out */
+	Vars2.Recu.Fans.Fresh_pct.valid = 1;
+	Run(60000);
+	CHECK(Vars2.Recu.Fans.Fresh_pct.valid == 1);
+}
+
+static void test_group_valid(void)
+{
+	sVarsGlobalEnergy* pGe = &Vars2.GlobalEnergy;
+	sVarsPack* pPack = &Vars2.PackHome80Ah;
+	int i, all;
+
+	Reset(NODEID_ELECON);
+	pGe->Battery.Soc_pct.value = 50.0f;
+	VARS2_SetGroupValid(&pGe->Battery, 1);
+	CHECK(pGe->Battery.Soc_pct.valid && pGe->Battery.Voltage_V.valid && pGe->Battery.Current_A.valid &&
+	      pGe->Battery.Energy_Wh.valid && pGe->Battery.Power_W.valid);
+	CHECK(!pGe->Solar.Power_W.valid && !pGe->Load.Current_A.valid);   /* neighbours untouched */
+	CHECK(!Vars2.System.NetworkStatus.valid && !Vars2.PackWorkshop251Ah.Soc_pct.valid);
+	CHECK(pGe->Battery.Soc_pct.value == 50.0f);                        /* values untouched */
+
+	VARS2_SetGroupValid(pGe, 1);                                       /* whole container */
+	CHECK(pGe->Solar.EnergyToday_Wh.valid && pGe->Load.Power_W.valid);
+	CHECK(!Vars2.PackWorkshop251Ah.Soc_pct.valid && !Vars2.Mppt.BatCurrent_A.valid);
+	VARS2_SetGroupValid(&pGe->Solar, 0);
+	CHECK(!pGe->Solar.Power_W.valid && !pGe->Solar.EnergyToday_Wh.valid && pGe->Load.Power_W.valid);
+
+	VARS2_SetGroupValid(pPack, 1);                                     /* arrays */
+	for (all = 1, i = 0; i < 16; i++) all = all && pPack->CellVoltage_V[i].valid && pPack->CellTemp_C[i].valid;
+	CHECK(all && pPack->Soc_pct.valid);
+	CHECK(!Vars2.PackHome220Ah.CellTemp_C[0].valid && !Vars2.Mppt.BatCurrent_A.valid);
+
+	VARS2_SetGroupValid(&Vars2.HomeEnergy, 1);
+	VARS2_SetGroupValid(&Vars2.HomeEnergy.Load, 0);
+	CHECK(Vars2.HomeEnergy.Storage.BalancedToday.valid && !Vars2.HomeEnergy.Load.Cons_Wh.valid &&
+	      Vars2.HomeEnergy.Pv.Prod_Wh.valid && !Vars2.WorkshopEnergy.Storage.Soc_pct.valid);
+
+	VarSet(&Vars2.ShuntHome.Current_A, -3.25f, 1);
+	CHECK(Vars2.ShuntHome.Current_A.value == -3.25f && Vars2.ShuntHome.Current_A.valid == 1);
+	VarSet(&Vars2.ShuntHome.Current_A, 1.0f, 0);
+	CHECK(Vars2.ShuntHome.Current_A.value == 1.0f && Vars2.ShuntHome.Current_A.valid == 0);
+	VarSetI32(&Vars2.HomeEnergy.Storage.BalancedToday, 1, 1);
+	CHECK(Vars2.HomeEnergy.Storage.BalancedToday.value == 1 && Vars2.HomeEnergy.Storage.BalancedToday.valid == 1);
+	VarSetU32(&Vars2.System.NetworkStatus, 0x9Eu, 1);
+	CHECK(Vars2.System.NetworkStatus.value == 0x9Eu && Vars2.System.NetworkStatus.valid == 1);
+}
+
+/* tick wrap (32-bit RxTick, 16-bit TxTick): timeout and TX periods across 2^32 */
+static void test_tick_wrap(void)
+{
+	uint8_t f[8];
+	float v = 1.0f;
+	int i, n45 = 0;
+	uint32_t last = 0, bad = 0;
+
+	Reset(NODEID_TECHM);
+	gTick = 0xFFFFFFFFu - 4000u;
 	VARS2_Init(NODEID_TECHM);
-	memset(gLocCount, 0, sizeof(gLocCount));
-	for (t = 0; t < 5000; t += 10) { SetTick(900000 + t); VARS2_UpdateLocal_10ms(LocalCb); }
+	Frame(f, VID_MPPT_SOLAR_VOLTAGE_V, &v, 1);          /* timeout 3000 ms */
+	VARS2_ProcessRxFrame(0x184, 8, 0, f);
+	Run(2990);
+	CHECK(Vars2.Mppt.SolarVoltage_V.valid == 1);
+	Run(2000);                                          /* crosses 2^32 */
+	CHECK(Vars2.Mppt.SolarVoltage_V.valid == 0);
+	VARS2_ProcessRxFrame(0x184, 8, 0, f);
+	Run(2000);
+	CHECK(Vars2.Mppt.SolarVoltage_V.valid == 1);
+
+	Reset(NODEID_ELECON);
+	gTick = 0xFFFFFFFFu - 20000u;
+	VARS2_Init(NODEID_ELECON);
+	Run(40000);
+	for (i = 0; i < gTxN; i++)
 	{
-		int sum = 0; for (i = 0; i <= VAR_MAX_ID; i++) sum += gLocCount[i];
-		CHECK(sum == 0 || gLocOther == 0);   /* any TECHM local rows would be 0x183, counted in gLocOther */
+		if ((gTx[i].data[0] | (gTx[i].data[1] << 8)) == VID_MPPT_SOLAR_VOLTAGE_V)   /* period 1000 */
+		{
+			if (n45 > 0 && gTx[i].tick - last < 1000u) bad++;
+			n45++;
+			last = gTx[i].tick;
+		}
+	}
+	CHECK(bad == 0 && n45 >= 39 && n45 <= 40);
+}
+
+static void test_set_by_id(void)
+{
+	Reset(NODEID_TECHM);
+	CHECK(VARS2_SetById(VID_TEMP_TANK_3_C, 54.3f, 1) == 1);
+	CHECK(Vars2.Temperatures.Techm.Tank3_C.value == 54.3f && Vars2.Temperatures.Techm.Tank3_C.valid == 1);
+	CHECK(VARS2_SetById(VID_TEMP_TANK_3_C, -3276.8f, 0) == 1);
+	CHECK(Vars2.Temperatures.Techm.Tank3_C.value == -3276.8f && Vars2.Temperatures.Techm.Tank3_C.valid == 0);
+	CHECK(VARS2_SetById(VID_EL_HEATER_STATUS, 7.0f, 1) == 1);          /* enum */
+	CHECK(Vars2.ElHeater.State.value == ElHeaterState_InvalidInputs && Vars2.ElHeater.State.valid == 1);
+	CHECK(VARS2_SetById(VID_EL_HEATER_STATUS, 2.6f, 1) == 1);          /* rounded */
+	CHECK(Vars2.ElHeater.State.value == 3);
+	CHECK(VARS2_SetById(VID_EL_HEATER_STATUS, -2.6f, 1) == 1);
+	CHECK(Vars2.ElHeater.State.value == -3);
+
+	/* other node's variable and unknown id: nothing written */
+	CHECK(VARS2_SetById(VID_TEMP_OUTSIDE_C, 5.0f, 1) == 0);
+	CHECK(Vars2.Temperatures.Elecon.Outside_C.valid == 0 && Vars2.Temperatures.Elecon.Outside_C.value == 0.0f);
+	CHECK(VARS2_SetById((eVarId)2, 5.0f, 1) == 0);
+	CHECK(VARS2_SetById((eVarId)(VAR_MAX_ID + 1), 5.0f, 1) == 0);
+
+	Reset(NODEID_ELECON);
+	CHECK(VARS2_SetById(VID_NETWORK_STATUS, 158.0f, 1) == 1);          /* uint32 */
+	CHECK(Vars2.System.NetworkStatus.value == 158u);
+	CHECK(VARS2_SetById(VID_NETWORK_STATUS, -1.0f, 1) == 1);
+	CHECK(Vars2.System.NetworkStatus.value == 0u);
+}
+
+static void test_tx(void)
+{
+	int perId[VAR_MAX_ID + 1];
+	uint32_t last[VAR_MAX_ID + 1];
+	int i, bad = 0, maxPerTick = 0, inTick = 0, frames;
+	uint32_t prevTick = 0;
+	uint16_t k;
+	const uint8_t node = NODEID_ELECON_D;
+	float v;
+
+	Reset(node);
+	VARS2_SetFrameHook(Hook);
+	VARS2_SetGroupValid(&Vars2.Axpert, 1);
+	Vars2.Axpert.BatVoltage_V.value = 52.7f;
+	Vars2.WorkshopEnergy.Storage.Soc_pct.value = 81.5f;   /* stays invalid */
+	Run(60000);
+	memset(perId, 0, sizeof perId);
+	memset(last, 0, sizeof last);
+	for (i = 0; i < gTxN; i++)
+	{
+		const sTx* f = &gTx[i];
+		uint16_t id = (uint16_t)(f->data[0] | (f->data[1] << 8));
+		const sVarMeta* m;
+		CHECK(f->cobid == 0x180u + node);
+		if (id > VAR_MAX_ID || VarIdToIndex[id] == VAR_IDX_UNKNOWN) { CHECK(0); continue; }
+		m = Meta(id);
+		CHECK(m->Producer == node && (m->Flags & VMF_ON_CAN));
+		if (perId[id] > 0 && f->tick - last[id] < m->PeriodMs) bad++;
+		perId[id]++;
+		last[id] = f->tick;
+		if (f->tick == prevTick) inTick++; else inTick = 1;
+		if (inTick > maxPerTick) maxPerTick = inTick;
+		prevTick = f->tick;
+		if (id == VID_AXPERT_BAT_VOLTAGE_V)
+		{
+			memcpy(&v, &f->data[2], 4);
+			CHECK(v == 52.7f && f->data[6] == 1 && f->data[7] == 0);
+		}
+		if (id == VID_STRG2_SOC)
+		{
+			memcpy(&v, &f->data[2], 4);
+			CHECK(v == 81.5f && f->data[6] == 0);
+		}
+	}
+	CHECK(bad == 0);           /* never faster than the period */
+	CHECK(maxPerTick == 1);    /* max 1 CAN frame per 10 ms */
+	frames = 0;
+	for (k = 0; k < VARS_COUNT; k++)
+	{
+		const sVarMeta* m = &VarMeta[k];
+		if (m->Producer == node && (m->Flags & VMF_ON_CAN))
+		{
+			int exp = 60000 / m->PeriodMs;
+			if (!(perId[m->Id] >= exp - 1 && perId[m->Id] <= exp)) printf("  id %u: %d frames, expected ~%d\n", m->Id, perId[m->Id], exp);
+			CHECK(perId[m->Id] >= exp - 1 && perId[m->Id] <= exp);
+			frames += perId[m->Id];
+		}
+	}
+	CHECK(frames == gTxN);
+	CHECK(gHookN == gTxN && gHookCobid == 0x180u + node);   /* every CAN frame also to the hook */
+	printf("tx: %d frames in 60 s from node %u\n", gTxN, node);
+
+	/* VARS2_SendLegacy(): own variable now, other node's ignored */
+	gTxN = 0;
+	VARS2_SendLegacy(VID_AXPERT_BAT_VOLTAGE_V);
+	VARS2_SendLegacy(VID_BAT_SOC);
+	CHECK(gTxN == 1 && (gTx[0].data[0] | (gTx[0].data[1] << 8)) == VID_AXPERT_BAT_VOLTAGE_V);
+	VARS2_SetFrameHook(NULL);
+}
+
+static void test_local(void)
+{
+	int counts[VAR_MAX_ID + 1];
+	int i, bad = 0;
+	uint32_t t;
+	uint16_t k;
+
+	Reset(NODEID_ELECON);
+	VARS2_UpdateLocal_10ms(NULL);   /* no callback: nothing */
+	for (t = 0; t < 30000; t += 10)
+	{
+		gTick += 10;
+		VARS2_UpdateLocal_10ms(LocalCb);
+	}
+	memset(counts, 0, sizeof counts);
+	for (i = 0; i < gLocN; i++)
+	{
+		const sVarMeta* m = Meta(gLocIds[i]);
+		if (m->Producer != NODEID_ELECON || (m->Flags & VMF_ON_CAN)) bad++;
+		counts[gLocIds[i]]++;
+	}
+	CHECK(bad == 0);
+	CHECK(gTxN == 0);   /* nothing on CAN */
+	for (k = 0; k < VARS_COUNT; k++)
+	{
+		const sVarMeta* m = &VarMeta[k];
+		if (m->Producer == NODEID_ELECON && !(m->Flags & VMF_ON_CAN))
+		{
+			int exp = 30000 / m->PeriodMs;
+			CHECK(counts[m->Id] >= exp - 1 && counts[m->Id] <= exp);
+		}
+	}
+	printf("local: %d tunnel frames in 30 s\n", gLocN);
+}
+
+static void test_legacy_roundtrip(void)
+{
+	uint16_t k;
+	int32_t raw;
+	int bad = 0, n = 0;
+
+	for (k = 0; k < VARS_COUNT; k++)
+	{
+		const sVarMeta* m = &VarMeta[k];
+		Reset(m->Producer);
+		for (raw = -32768; raw <= 32767; raw++)
+		{
+			uint16_t inv = 0;
+			uint8_t valid = (uint8_t)(raw & 1);
+			int16_t back;
+			if (VARS2_SetLegacy(m->LegacyId, (int16_t)raw, valid) != 1) bad++;
+			back = VARS2_GetLegacy(m->LegacyId, &inv, 0x01);
+			if (back != (int16_t)raw || (inv != 0) != (valid == 0)) bad++;
+			n++;
+		}
+	}
+	printf("legacy round trip: %d values, %d bad\n", n, bad);
+	CHECK(bad == 0);
+
+	/* not own / unknown */
+	Reset(NODEID_TECHM);
+	CHECK(VARS2_SetLegacy(VID_BAT_VOLTAGE_V, 520, 1) == 0);   /* TECHM APP.c init write: ignored */
+	{
+		uint16_t inv = 0;
+		CHECK(VARS2_GetLegacy(VID_BAT_VOLTAGE_V, &inv, 0x01) == 0 && inv == 0x01);
+		inv = 0;
+		CHECK(VARS2_GetLegacy(2, &inv, 0x01) == 0 && inv == 0x01);
+		CHECK(VARS2_GetLegacy(2, NULL, 0x01) == 0);
 	}
 }
 
 int main(void)
 {
-	test_rx_known_id();
-	test_rx_unknown_id_ignored();
-	test_rx_valid_flag_bit();
-	test_rx_timeout();
-	test_sendlegacy_float_scale10();
-	test_sendlegacy_float_scale1000();
-	test_sendlegacy_float_scale_point1();
-	test_sendlegacy_bool();
-	test_sendlegacy_enum();
-	test_sendlegacy_unmapped_noop();
-	test_setvalid_roundtrip();
-	test_default_valid_after_init();
-	test_rx_dlc_rtr_rejected();
-	test_tx_hook_and_own_state();
-	test_local_publishing();
-
+	test_init();
+	test_rx();
+	test_timeout();
+	test_group_valid();
+	test_tick_wrap();
+	test_set_by_id();
+	test_tx();
+	test_local();
+	test_legacy_roundtrip();
 	printf("%d checks, %d failed\n", checks, fails);
-	printf(fails ? "TEST_VARS2 FAILED\n" : "TEST_VARS2 PASSED\n");
-	return fails ? 1 : 0;
+	if (fails) { printf("TEST_VARS2 FAILED\n"); return 1; }
+	printf("TEST_VARS2 PASSED\n");
+	return 0;
 }

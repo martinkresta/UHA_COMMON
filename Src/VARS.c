@@ -3,88 +3,30 @@
  *
  *  Created on: Jul 13, 2021
  *      Author: Martin
+ *
+ *  Temporary compatibility layer over Vars2 (VARS2 direct access task, part A),
+ *  removed in part C. The old Vars[] is gone; values and validity live in Vars2.
  */
 
 
 #include "VARS.h"
 #include "VARS2.h"
-#include "main.h"
-
-sVar Vars[NUM_OF_VARIABLES];
-
-int16_t mDummyVar = 0x8000;
-
-static uint8_t mReadVars2;
 
 
 void VAR_Init(void)
 {
-	int i;
-	for(i = 0; i < NUM_OF_VARIABLES; i++)
-	{
-		Vars[i].valid = 0;
-		Vars[i].local = 0;
-		Vars[i].value = 0;
-	}
 }
 
 void VAR_EnableVars2Read(void)
 {
-	mReadVars2 = 1;
 }
 
 int16_t VAR_GetVariable(uint16_t varId, uint16_t* invalid)
 {
-	int16_t value;
-
-	if (mReadVars2 && VARS2_GetLegacy(varId, &value, invalid))
-	{
-		return value;
-	}
-	return VAR_GetVariableLegacy(varId, invalid);
-}
-
-int16_t VAR_GetVariableLegacy(uint16_t varId, uint16_t* invalid)
-{
-	if (varId < NUM_OF_VARIABLES)
-	{
-		if(Vars[varId].valid == 0)
-		{
-			if (invalid != NULL) *invalid |= INVALID_FLAG;
-		}
-		return Vars[varId].value;
-	}
-	else
-	{
-		if (invalid != NULL) *invalid |= INVALID_FLAG;
-		return 0;
-	}
-}
-
-
-int16_t* VAR_GetVariablePointer(uint16_t varId, uint16_t* invalid)
-{
-	if (varId < NUM_OF_VARIABLES)
-	{
-		if(Vars[varId].valid == 0)
-		{
-			if (invalid != NULL) *invalid |= INVALID_FLAG;
-		}
-		return &(Vars[varId].value);
-	}
-	else
-	{
-		if (invalid != NULL) *invalid |= INVALID_FLAG;
-		return &(Vars[varId].value);
-	}
+	return VARS2_GetLegacy(varId, invalid, INVALID_FLAG);
 }
 
 void VAR_SetVariable(uint16_t varId, int16_t value, uint8_t valid)
 {
-	if (varId < NUM_OF_VARIABLES)
-	{
-		Vars[varId].valid = valid;
-		Vars[varId].value = value;
-	}
+	(void)VARS2_SetLegacy(varId, value, valid);
 }
-

@@ -1,10 +1,9 @@
-# expect: receive-only node
+# expect: group producer 'RPI' is a receive-only node
 version: 1
 nodes: {N1: 1, N2: 2, RPI: 15}
 defaults: {type: float, timeout_ms: auto, on_can: true}
 groups:
   g:
-    producer: N1
+    producer: RPI
     vars:
-      - {id: 1, name: G_A_W, unit: "W", period_ms: 1000}
-      - {id: 2, name: G_B, producer: RPI, period_ms: 1000}
+      - {id: 1, name: G_A_W, field: GA_W, unit: "W", period_ms: 1000}

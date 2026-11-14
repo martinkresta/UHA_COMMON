@@ -352,30 +352,23 @@
 
 
 
-#define NUM_OF_VARIABLES		400
-
-
 #define INVALID_FLAG				0x01
 
-typedef struct
-{
-	uint8_t valid;
-	uint8_t local;
-	int16_t value;
-} sVar;
+/* Temporary compatibility layer over Vars2 (VARS2 direct access, removed in
+ * part C): the VAR_* ids above equal the VARS2 ids; values are the old scaled
+ * int16 (VarMeta LegacyScale). Converted node code uses Vars2 directly. */
 
-
+/* no-op: Vars2 is initialised by VARS2_Init() (COM_Init()) */
 void VAR_Init(void);
-
-/* Returns remote variables from Vars2 (converted back to the legacy int16) once
- * VAR_EnableVars2Read() was called and the value was received; otherwise the
- * old Vars[]. Own variables always come from Vars[]. */
-int16_t VAR_GetVariable(uint16_t varId, uint16_t* invalid);
-/* always reads the old Vars[] */
-int16_t VAR_GetVariableLegacy(uint16_t varId, uint16_t* invalid);
-/* switch VAR_GetVariable() to the VARS2 read layer (call after COM_Init()) */
+/* no-op: VAR_GetVariable() always reads Vars2 */
 void VAR_EnableVars2Read(void);
-int16_t* VAR_GetVariablePointer(uint16_t varId, uint16_t* invalid);
+
+/* any variable from Vars2 as the old int16; INVALID_FLAG in *invalid (may be
+ * NULL) if invalid, not received, timed out or unknown */
+int16_t VAR_GetVariable(uint16_t varId, uint16_t* invalid);
+
+/* own variable into Vars2 (raw / LegacyScale); ignored for a variable
+ * produced by another node or an unknown id */
 void VAR_SetVariable(uint16_t varId, int16_t value, uint8_t valid);
 
 #endif /* INC_VARS_H_ */
