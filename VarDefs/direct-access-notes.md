@@ -375,7 +375,11 @@ Reads: none (IOBOARD_U reads no other node's variables).
 
 No threshold or constant compares a variable on this node. METEO keeps measuring in dm/s internally; the
 published values are converted: `WindBurst_mps = WindSpeedBurst / 10`, `WindAvg_mps = WindSpeedAvg / 10`
-(`legacy_scale` 10 as before, so the frames are unchanged).
+(`legacy_scale` 10 as before). Frames are identical for raw values < 32768; above that the old int16
+cast wrapped energy / power to negative values, now the true value is sent.
+
+Review (B.10): no bugs. IOBOARD_D, TECHM and ELECON also compile `METEO.c` (do not call it): built, same
+warnings as before.
 
 ### Removed dead code
 
