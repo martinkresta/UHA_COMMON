@@ -785,6 +785,7 @@ Wiring (`APP.c`): `SCOM_Init(&huart1, &Vars2.System)`, `AC_Init(&Vars2.Meters.Io
 
 Proposal: ELECON_D follow-up (one line, v001.22): `uint16_t globalSoc = (uint16_t)mpGlobalBattery->Soc_pct.value;`
 (truncation = behaviour before direct access).
+**Deferred (Martin, 2026-11-14): not a concern now, keep for the future.**
 
 ### Findings to report (not changed)
 
