@@ -5,8 +5,8 @@ Usage (from anywhere):
     python tools/gen_all.py [yaml] [--baseline OLD.yaml] [--src-root DIR] [-o OUTDIR]
 
 Defaults: yaml = ../uha_vars.yaml (next to this tools/ folder),
-          uha_vars_gen.h -> ../../Inc, uha_vars_gen.c -> ../../Src (UHA_COMMON/Inc, Src),
-          VARS.h = ../../Inc/VARS.h. -o overrides both with a single directory.
+          uha_vars_gen.h -> ../../Inc, uha_vars_gen.c -> ../../Src (UHA_COMMON/Inc, Src).
+          -o overrides both with a single directory.
 Generation is skipped when the validator reports any error (exit code 1).
 """
 
@@ -31,7 +31,6 @@ def main() -> int:
 
     ap = argparse.ArgumentParser(description="Validate uha_vars.yaml and generate FW code")
     ap.add_argument("yaml", nargs="?", default=os.path.join(VARDEFS_DIR, "uha_vars.yaml"))
-    ap.add_argument("--vars-h", default=os.path.join(VARDEFS_DIR, "..", "Inc", "VARS.h"))
     ap.add_argument("--mcan-h", default=os.path.join(VARDEFS_DIR, "..", "Inc", "MCAN.h"))
     ap.add_argument("--baseline", help="previous released YAML for the compatibility check")
     ap.add_argument("--src-root", help="workspace root to cross-check ELM_AddMeter() calls")
@@ -49,7 +48,7 @@ def main() -> int:
         print(f"ERROR   {e}")
         return 2
 
-    issues = validate(model, vars_h=args.vars_h, baseline=baseline, src_root=args.src_root,
+    issues = validate(model, baseline=baseline, src_root=args.src_root,
                       mcan_h=args.mcan_h)
     for i in issues:
         print(i.format(args.yaml))

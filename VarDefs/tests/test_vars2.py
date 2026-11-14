@@ -4,7 +4,7 @@ test_vars2.py - PC unit test of VARS2.c (UHA_COMMON/Src/VARS2.c) with gcc.
 Compiles VARS2.c + uha_vars_gen.c + test_vars2.c (which mocks HAL_GetTick() and
 MCAN_SendFrame()) with `gcc -std=c99 -Wall -Wextra -pedantic`, then runs the test
 program: RX, timeout, VARS2_SetGroupValid(), VarSet(), VARS2_SetById(), YAML-driven
-TX, tunnel callback, legacy wrapper round trip (every row, every int16).
+TX, tunnel callback.
 
 Usage (from UHA_COMMON/VarDefs or anywhere):
     python tests/test_vars2.py [--cc gcc]

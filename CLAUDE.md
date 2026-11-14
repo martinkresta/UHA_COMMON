@@ -7,43 +7,49 @@ Shared C library linked into every ASW project via STM32CubeIDE linked resources
 
 ## Module Reference
 
-### VARS — Global Variable Bus
-**Files:** `VARS.h` / `VARS.c`
+### VARS2 — Shared Variables
+**Files:** `VARS2.h` / `VARS2.c` (hand-written), `VARS2_types.h`, generated `uha_vars_gen.h/.c` from
+`VarDefs/uha_vars.yaml` (`python VarDefs/tools/gen_all.py`). Spec: `VarDefs/VARS2_spec.md`.
 
-Central registry of all inter-node data. ~400 integer IDs, `int16_t` values.
+All inter-node data lives in `Vars2`, grouped as in the YAML: `Vars2.<Group>.<Field>` or
+`Vars2.<Container>.<Group>.<Field>`. Every field is `{value, valid}` (`sVarF32` / `sVarI32` / `sVarU32`),
+value in physical units (`Voltage_V`, `Soc_pct`, ...). CAN frame `0x180 + node`: id, 4-byte value, valid flag.
 
 ```c
-typedef struct { uint8_t valid; uint8_t local; int16_t value; } sVar;
+// APP.c wires the groups: produced = non-const, read = const
+GEMON_Init(&Vars2.GlobalEnergy, &Vars2.HomeEnergy, &Vars2.WorkshopEnergy);
 
-VAR_Init()
-VAR_GetVariable(varId, *invalid)
-VAR_SetVariable(varId, value, valid)
-VAR_GetVariablePointer(varId, *invalid)
+// producer
+p->Soc_pct.value = soc;  p->Voltage_V.value = v;
+VARS2_SetGroupValid(p, valid);            // all fields of the group / container
+VarSet(&p->Current_A, current, valid);    // one field (VarSetI32 / VarSetU32)
+VARS2_SetById(VID_TEMP_OUTSIDE_C, t, 1);  // by id (TEMP, ELM, SENSIRION)
+
+// reader
+if (pBat->Soc_pct.valid) { ... pBat->Soc_pct.value ... }
 ```
 
-**ID ranges:**
+VARS2 sends every own variable by its YAML `period_ms` (no stream lists) and clears `.valid` of received
+variables after `timeout_ms`. Ids (`VID_*`) and names are fixed (wire format, UhaGatePy, PC tool).
+
+**Id ranges** (unchanged):
 | Range | Subsystem |
 |-------|-----------|
 | 1 | Network status |
-| 8–18 | Solar/PV aggregates |
-| 10–18 | Battery aggregates (SOC, voltage, current, power) |
-| 20–24 | BMS1 summary (workshop pack, published by ELECON_D) |
-| 30–34 | BMS2 summary (house pack 1, published by ELECON) |
-| 35–39 | BMS3 summary (house pack 2, published by ELECON) |
+| 8–18 | Global energy (battery, solar, load) |
+| 20–24 | Workshop pack 251 Ah (ELECON_D) |
+| 30–34 | House pack 220 Ah (ELECON) |
+| 35–39 | House pack 80 Ah (ELECON) |
 | 40–51 | MPPT controller, shunts |
-| 60–93 | AC circuit consumption/power (AC300, AC3KW, fridge, kitchen, etc.) |
-| 80–99 | Electric heater, heating energy |
-| 100–152 | All temperature sensors (boiler, tanks, rooms, RECU, board temps, outdoor) |
-| 161–169 | Meteo (wind speed, gust, power, energy, rainfall) |
-| 180–211 | BMS1 cells: voltages (MV, 16 cells) + temps (C, 16 cells) |
-| 220–251 | BMS2 cells: voltages + temps |
-| 260–295 | Axpert inverter data |
-| 300–317 | Storage 1 (STRG1): SOC, power, local PV/loads |
-| 320–337 | Storage 2 (STRG2): SOC, power, local PV/loads |
-| 340–344 | LVDC (low-voltage DC) loss/efficiency |
-| 350–381 | BMS3 cells: voltages (MV, 16 cells) + temps (C, 16 cells) |
-
-**NUM_OF_VARIABLES = 400**
+| 60–79 | AC circuit consumption / power (ELM) |
+| 80–99 | Electric heater, heating energy, water |
+| 100–152 | Temperatures (boiler, tanks, rooms, RECU, boards, outdoor) |
+| 161–169 | Meteo |
+| 180–211 | Workshop pack cells: voltages + temps |
+| 220–251 | House pack 220 Ah cells |
+| 260–295 | Axpert inverter, workshop meters |
+| 300–337 | Home / workshop energy (storage, load, PV) |
+| 350–381 | House pack 80 Ah cells |
 
 ---
 
@@ -70,13 +76,11 @@ MCAN_Transmit()             // flush TX queue (called 5ms)
 ### COM — CAN Message Dispatcher
 **Files:** `COM.h` / `COM.c`
 
-High-level bridge between MCAN and application. Handles variable streaming, button events, gestures, RTC sync, system info.
+High-level bridge between MCAN and application: VARS2 RX/TX (via `VARS2_Update_10ms()`), button events, gestures, RTC sync, system info.
 
 ```c
 COM_Init(nodeId)
 COM_Update_10ms()
-COM_SendVariable(varId)
-COM_AddStreamedVariable(varId, period_ms)   // up to 100 streams
 COM_SendMessage(cobid, data, dlc)
 COM_SendGesture(gestureId)
 COM_SendACRemoteRequest(type, req, keepTime)
@@ -89,7 +93,6 @@ COM_GetRxMessage(&msg)
 | COBID | Message |
 |-------|---------|
 | 0x100 | Button state |
-| 0x110 | Old variable value: no longer sent (VARS2 step 6b); RX case still in some APP.c until part B |
 | 0x180 | VARS2 variable frame (`0x180 + node`), see `VarDefs/VARS2_spec.md` |
 | 0x120 | Gesture command |
 | 0x130 | AC remote request |
@@ -123,7 +126,7 @@ BMS_UartRxCallback(huart, len, bms1, bms2)
 ### ELM — AC Energy Meter
 **Files:** `ELM.h` / `ELM.c`
 
-Pulse-counting AC energy metering. Maps GPIO pins to VARS IDs.
+Pulse-counting AC energy metering. Maps GPIO pins to VARS2 ids (`VID_*`).
 
 ```c
 ELM_Init(numOfMeters)

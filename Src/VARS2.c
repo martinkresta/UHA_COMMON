@@ -7,9 +7,8 @@
  * See UHA_COMMON/VarDefs/VARS2_spec.md.
  *
  * Hand-written, NOT generated. Uses the generated tables in uha_vars_gen.h/.c.
- * Not interrupt safe: call everything from the main loop. Known exceptions in
- * unconverted node code (TECHM WM_ExtiCallback, TECHM SCOM UART callback) are
- * removed in the node's part B (direct-access-notes.md).
+ * Not interrupt safe: call everything from the main loop (no node writes or
+ * reads Vars2 in an interrupt; checked per node, direct-access-notes.md).
  */
 
 #include "VARS2.h"
@@ -19,7 +18,7 @@
 #define VARS2_COBID_BASE  0x180u
 #define VARS2_FLAG_VALID  0x01u  /* spec sec.2, byte 6 bit0 */
 
-#define VARS2_CAN_MAX_PER_CALL    1u   /* like the old COM stream: 1 frame per 10 ms */
+#define VARS2_CAN_MAX_PER_CALL    2u   /* max 2 frames per 10 ms (tests: VARS2_TEST_CAN_MAX in test_vars2.c, test_com.c) */
 #define VARS2_LOCAL_MAX_PER_CALL  4u   /* bounds the tunnel burst per 10 ms tick */
 
 /* protocol state only; value + valid live in Vars2 */
@@ -277,76 +276,4 @@ uint8_t VARS2_SetById(eVarId id, float value, uint8_t valid)
 	StoreValue(meta, value);
 	*ValidOf(meta) = valid ? 1u : 0u;
 	return 1;
-}
-
-
-/* ---- temporary compatibility (VARS.c wrappers), removed in part C ---- */
-
-uint8_t VARS2_SetLegacy(uint16_t legacyVarId, int16_t raw, uint8_t valid)
-{
-	const sVarMeta* meta = MetaOf(legacyVarId);   /* legacy id == VARS2 id */
-	float f32;
-	int32_t i32;
-
-	if (meta == NULL || !IsOwn(meta))
-	{
-		return 0;
-	}
-	if (meta->Type == VT_FLOAT)
-	{
-		f32 = (float)raw / meta->LegacyScale;   /* exactly as the old TX conversion */
-		memcpy(meta->pVar, &f32, 4);
-	}
-	else   /* VT_INT32 / VT_UINT32 / VT_BOOL / VT_ENUM: integer value of raw */
-	{
-		i32 = (int32_t)raw;
-		memcpy(meta->pVar, &i32, 4);
-	}
-	*ValidOf(meta) = valid ? 1u : 0u;
-	return 1;
-}
-
-int16_t VARS2_GetLegacy(uint16_t legacyVarId, uint16_t* invalid, uint16_t invalidFlag)
-{
-	const sVarMeta* meta = MetaOf(legacyVarId);   /* legacy id == VARS2 id */
-	float f32;
-	int32_t i32;
-
-	if (meta == NULL)
-	{
-		if (invalid != NULL) *invalid |= invalidFlag;
-		return 0;
-	}
-
-	if (meta->Type == VT_FLOAT)
-	{
-		memcpy(&f32, meta->pVar, 4);
-		f32 *= meta->LegacyScale;
-		if (f32 > 32767.0f) f32 = 32767.0f;
-		if (f32 < -32768.0f) f32 = -32768.0f;
-		i32 = (int32_t)(f32 >= 0 ? f32 + 0.5f : f32 - 0.5f);   /* round to nearest, no libm */
-	}
-	else   /* integer value, as VARS2_SetLegacy() / RX writes it */
-	{
-		memcpy(&i32, meta->pVar, 4);
-	}
-	if (i32 > 32767) i32 = 32767;
-	if (i32 < -32768) i32 = -32768;
-
-	if (*ValidOf(meta) == 0 && invalid != NULL)
-	{
-		*invalid |= invalidFlag;
-	}
-	return (int16_t)i32;
-}
-
-void VARS2_SendLegacy(uint16_t legacyVarId)
-{
-	const sVarMeta* meta = MetaOf(legacyVarId);   /* legacy id == VARS2 id */
-
-	if (meta == NULL || !IsOwn(meta))
-	{
-		return;   /* only this node's variables are sent */
-	}
-	SendOnCan((uint16_t)(meta - VarMeta));
 }

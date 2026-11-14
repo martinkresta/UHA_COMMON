@@ -2,7 +2,7 @@
 vars_validate.py - validator for uha_vars.yaml (VARS2), spec section 3.
 
 CLI:
-    python tools/vars_validate.py <yaml> [--vars-h PATH] [--baseline OLD.yaml]
+    python tools/vars_validate.py <yaml> [--baseline OLD.yaml]
                                          [--src-root DIR] [-q]
 
     Exit code: 0 = no errors, 1 = errors found, 2 = YAML unparseable / file missing.
@@ -10,12 +10,14 @@ CLI:
 
 Import:
     from vars_validate import validate
-    issues = validate(model, vars_h=None, baseline=None, src_root=None)
+    issues = validate(model, baseline=None, src_root=None)
     for i in issues: print(i.format(model.path))
 
-    vars_h   None -> default <VarDefs>/../Inc/VARS.h (error if unreadable),
-             False -> legacy-vs-VARS.h check skipped, str -> that file
-    mcan_h   same for MCAN.h (node ids vs NODEID_*)
+    mcan_h   None -> default <VarDefs>/../Inc/MCAN.h (error if unreadable), False -> skipped,
+             str -> that file (node ids vs NODEID_*)
+
+`legacy` and `legacy_scale` are accepted and checked for format only (UhaGatePy uses them for
+uha.json); the firmware no longer uses them.
     baseline None, a path, or an already loaded Model
     src_root None or a directory scanned for ELM_AddMeter() calls (**/Core/Src/*.c)
 
@@ -39,7 +41,6 @@ from vars_model import (FIELD_SUFFIX, TYPES, UNIT_NAME_TOKEN, UNIT_TOKENS, VALID
                         Group, Model, VarDef, VarsYamlError, legacy_range, load_model)
 
 VARDEFS_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_VARS_H = VARDEFS_DIR.parent / "Inc" / "VARS.h"
 DEFAULT_MCAN_H = VARDEFS_DIR.parent / "Inc" / "MCAN.h"
 RE_NODEID = re.compile(r"#define\s+NODEID_(\w+)\s+(\d+)")
 
@@ -56,7 +57,6 @@ NODE_ID_MAX = 15
 RE_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 RE_C_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 RE_ENUM_ITEM = re.compile(r"^[A-Za-z0-9_]+$")
-RE_VARS_H = re.compile(r"#define\s+(VAR_\w+)\s+(\d+)")
 RE_ELM_ADD = re.compile(r"ELM_AddMeter\(\s*\w+\s*,\s*\w+\s*,\s*((?:VAR|VID)_\w+)\s*\)")
 RE_CONS_WH = re.compile(r"^CONS_(.+)_WH$")
 RE_POW_W = re.compile(r"^POW_(.+)_W$")
@@ -119,16 +119,6 @@ def _scan_nodes(path: str):
     if root is not None:
         walk(root, ())
     return key_lines, dups
-
-
-def parse_vars_h(path) -> Dict[str, int]:
-    out = {}
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
-        for line in f:
-            m = RE_VARS_H.search(line.split("//")[0])
-            if m:
-                out[m.group(1)] = int(m.group(2))
-    return out
 
 
 def scan_elm_calls(src_root) -> List[Tuple[str, int, str]]:
@@ -470,31 +460,6 @@ def _rule_legacy_range(c: _Ctx):
 
 
 # ---------------------------------------------------------------------------
-# Rule 6: legacy defines exist in VARS.h with the same id
-# ---------------------------------------------------------------------------
-def _rule_legacy_vars_h(c: _Ctx, vars_h):
-    if vars_h is False:
-        return
-    path = Path(vars_h) if vars_h else DEFAULT_VARS_H
-    try:
-        defs = parse_vars_h(path)
-    except OSError:
-        c.add("E", 0, "VARS.h", f"cannot read {path}; legacy ids cannot be checked")
-        return
-    for d in _all_defs(c.m):
-        if "legacy" not in d.raw and "legacy" not in c.m.defaults:
-            c.vw(d, None, "no 'legacy' define (ok for a new variable)")
-    for v in c.m.values:
-        lg = v.legacy
-        if not isinstance(lg, str):
-            continue
-        if lg not in defs:
-            c.ve(v.base, "legacy", f"legacy {lg} not found in VARS.h")
-        elif defs[lg] != v.id:
-            c.ve(v.base, "legacy", f"legacy {lg} is {defs[lg]} in VARS.h but id is {v.id}"
-                 + (f" ({v.name})" if v.index is not None else ""))
-
-
 # Rule 6b: node ids match NODEID_* in MCAN.h (generated code uses NODEID_<NODE>)
 # ---------------------------------------------------------------------------
 def _rule_mcan_nodes(c: _Ctx, mcan_h):
@@ -711,14 +676,13 @@ def _rule_units(c: _Ctx):
 
 
 # ---------------------------------------------------------------------------
-def validate(model: Model, vars_h=None, baseline=None, src_root=None, mcan_h=None) -> List[Issue]:
+def validate(model: Model, baseline=None, src_root=None, mcan_h=None) -> List[Issue]:
     c = _Ctx(model)
     _rule_schema(c)
     _rule_unique(c)
     _rule_nodes(c)
     _rule_enums(c)
     _rule_legacy_range(c)
-    _rule_legacy_vars_h(c, vars_h)
     _rule_mcan_nodes(c, mcan_h)
     _rule_timing(c)
     _rule_c_names(c)
@@ -739,14 +703,13 @@ def main(argv=None) -> int:
         pass
     ap = argparse.ArgumentParser(description="Validate uha_vars.yaml (VARS2)")
     ap.add_argument("yaml")
-    ap.add_argument("--vars-h", help=f"legacy VARS.h (default {DEFAULT_VARS_H})")
     ap.add_argument("--mcan-h", help=f"MCAN.h with NODEID_* (default {DEFAULT_MCAN_H})")
     ap.add_argument("--baseline", help="previous released YAML for the compatibility check")
     ap.add_argument("--src-root", help="scan <dir>/**/Core/Src/*.c for ELM_AddMeter() calls")
     ap.add_argument("-q", "--quiet", action="store_true", help="do not print warnings")
     a = ap.parse_args(argv)
 
-    for p, what in ((a.yaml, "file"), (a.vars_h, "file"), (a.mcan_h, "file"), (a.baseline, "file"),
+    for p, what in ((a.yaml, "file"), (a.mcan_h, "file"), (a.baseline, "file"),
                     (a.src_root, "dir")):
         if p and not (os.path.isdir(p) if what == "dir" else os.path.isfile(p)):
             print(f"FATAL   {p}: {what} not found", file=sys.stderr)
@@ -758,7 +721,7 @@ def main(argv=None) -> int:
         print(f"FATAL   {e}", file=sys.stderr)
         return 2
 
-    issues = validate(model, vars_h=a.vars_h, baseline=baseline, src_root=a.src_root, mcan_h=a.mcan_h)
+    issues = validate(model, baseline=baseline, src_root=a.src_root, mcan_h=a.mcan_h)
     ne = sum(1 for i in issues if i.severity == "E")
     nw = len(issues) - ne
     for i in issues:

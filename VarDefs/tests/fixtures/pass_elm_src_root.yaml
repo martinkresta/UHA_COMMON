@@ -2,7 +2,7 @@
 # expect-warning: VAR_UNKNOWN_WH is not a VID_* or legacy of any YAML variable
 # expect-absent: COMMENT
 # expect-absent: VID_CONS_FOO_WH
-# args: --vars-h VARS_test.h --src-root src
+# args: --src-root src
 version: 1
 nodes: {N1: 1, N2: 2, RPI: 15}
 defaults: {type: float, timeout_ms: auto, on_can: true}

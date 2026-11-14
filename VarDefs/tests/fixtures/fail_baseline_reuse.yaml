@@ -1,5 +1,5 @@
 # expect: id 4 was G_OLD in base_v1.yaml, now G_OTHER
-# args: --vars-h VARS_test.h --baseline base_v1.yaml
+# args: --baseline base_v1.yaml
 version: 1
 nodes: {N1: 1, N2: 2, RPI: 15}
 defaults: {type: float, timeout_ms: auto, on_can: true}

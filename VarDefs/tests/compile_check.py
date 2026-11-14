@@ -31,7 +31,6 @@ TEST_PROGRAM = r"""
 #include <stdio.h>
 #include <stddef.h>
 #include "uha_vars_gen.h"
-#include "VARS.h"
 
 static int fails = 0;
 #define CHECK(c) do { if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); fails++; } } while (0)
@@ -53,7 +52,6 @@ int main(void)
     CHECK(((size_t)(p - lo)) % VAR_ITEM_SIZE == 0u);
     CHECK(VarMeta[i].Type <= VT_ENUM);
     CHECK(VarMeta[i].TimeoutMs >= VarMeta[i].PeriodMs);
-    CHECK(VarMeta[i].LegacyScale > 0.0f);
     if (VarMeta[i].Flags & VMF_ON_CAN) oncan++;
     if (i > 0) for (j = 0; j < i; j++) if (VarMeta[j].pVar == VarMeta[i].pVar) { CHECK(0 && "duplicate pVar"); }
   }
@@ -65,8 +63,6 @@ int main(void)
 
   /* spot values */
   CHECK(VID_BMS1_SOC == 20);
-  CHECK(VarMeta[VarIdToIndex[VID_BMS1_SOC]].LegacyId == VAR_BMS1_SOC);
-  CHECK(VAR_BMS1_SOC == 20);
   CHECK(VID_BMS1_CELL_V_16 == 195);
   CHECK(VarMeta[VarIdToIndex[VID_BMS1_CELL_V_3]].pVar == (void*)&Vars2.PackWorkshop251Ah.CellVoltage_V[2]);
   CHECK(VarMeta[VarIdToIndex[VID_BMS3_CELL_TEMP_C_16]].pVar == (void*)&Vars2.PackHome80Ah.CellTemp_C[15]);
@@ -75,12 +71,11 @@ int main(void)
   CHECK(VarMeta[VarIdToIndex[VID_LOAD_A]].pVar == (void*)&Vars2.GlobalEnergy.Load.Current_A);
   CHECK(VarMeta[VarIdToIndex[VID_TEMP_OUTSIDE_C]].pVar == (void*)&Vars2.Temperatures.Elecon.Outside_C);
   CHECK(VarMeta[VarIdToIndex[VID_STRG2_BALANCED_TODAY]].Type == VT_BOOL);
-  CHECK(VarMeta[VarIdToIndex[VID_BMS1_CELL_V_3]].LegacyId == VAR_BMS1_CELL3_MV);
 
   printf("VARS_COUNT=%u VAR_MAX_ID=%u VARS_ON_CAN_COUNT=%u\n",
          (unsigned)VARS_COUNT, (unsigned)VAR_MAX_ID, (unsigned)VARS_ON_CAN_COUNT);
   printf("ARM size estimate: VarMeta %u B (flash), VarIdToIndex %u B (flash), Vars2 %u B (RAM)\n",
-         20u * VARS_COUNT, 2u * (VAR_MAX_ID + 1u), VAR_ITEM_SIZE * VARS_COUNT);
+         16u * VARS_COUNT, 2u * (VAR_MAX_ID + 1u), VAR_ITEM_SIZE * VARS_COUNT);
   printf("PC: sizeof(sVarMeta)=%u, sizeof(sVars)=%u\n", (unsigned)sizeof(sVarMeta), (unsigned)sizeof(sVars));
   printf(fails ? "RUNTIME CHECK FAILED (%d)\n" : "runtime checks OK\n", fails);
   return fails ? 1 : 0;

@@ -26,7 +26,6 @@ with a single directory (handy for the PC compile check / scratch use).
 """
 
 import argparse
-import math
 import os
 import sys
 from typing import List
@@ -55,16 +54,6 @@ def _ascii(text) -> str:
     s = str(text).replace("°C", "degC").replace("°", "deg")
     s = s.encode("ascii", "replace").decode("ascii")
     return s.replace("*/", "* /").replace("/*", "/ *")
-
-
-def _c_float(x) -> str:
-    f = float(x)
-    if not math.isfinite(f):
-        raise GenError(f"legacy_scale {x!r} is not a finite number")
-    s = repr(f)                      # shortest exact round-trip: '0.1', '10.0', '1e-05'
-    if "." not in s and "e" not in s:
-        s += ".0"
-    return s + "f"
 
 
 def _header_comment(model: Model) -> List[str]:
@@ -97,12 +86,6 @@ def _check(model: Model):
             errs.append(f"{where}: timeout_ms missing or not an int 0..65535 ({v.timeout_ms!r})")
         if v.producer not in nodes or v.producer == "RPI":
             errs.append(f"{where}: producer {v.producer!r} is not a producing node")
-        if v.legacy is not None and not (isinstance(v.legacy, str) and v.legacy.isidentifier()):
-            errs.append(f"{where}: legacy {v.legacy!r} is not a C identifier")
-        try:
-            _c_float(v.legacy_scale)
-        except (TypeError, ValueError, GenError):
-            errs.append(f"{where}: legacy_scale {v.legacy_scale!r} is not a number")
         if not v.base.c_field:
             errs.append(f"{where}: no C field name")
     ids = [v.id for v in model.values]
@@ -249,16 +232,14 @@ def gen_source(model: Model) -> str:
     for v in vals:
         rows.append([
             f"&Vars2.{v.c_ref},",
-            f"{_c_float(v.legacy_scale)},",
             f"{v.id},",
             f"{v.period_ms},",
             f"{v.timeout_ms},",
-            f"{v.legacy if v.legacy else 'VAR_LEGACY_NONE'},",
             f"{VT[v.type]},",
             f"NODEID_{v.producer},",
             "VMF_ON_CAN" if v.on_can else "0",
         ])
-    head = ["/* pVar", "scale", "id", "period", "tmout", "legacyId", "type", "producer", "flags */"]
+    head = ["/* pVar", "id", "period", "tmout", "type", "producer", "flags */"]
     widths = [max(len(r[i]) for r in rows + [head]) for i in range(len(head))]
 
     def fmt(cells):
@@ -267,7 +248,6 @@ def gen_source(model: Model) -> str:
     L = _header_comment(model) + [
         "",
         '#include "uha_vars_gen.h"',
-        '#include "VARS.h"   /* legacy VAR_* ids */',
         '#include "MCAN.h"   /* NODEID_* */',
         "",
         "sVars Vars2;",

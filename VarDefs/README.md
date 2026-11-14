@@ -36,9 +36,8 @@ scratch compile check).
 | `../Inc/VARS2.h`, `../Src/VARS2.c` | Hand-written VARS2 module (YAML-driven TX, RX into `Vars2`, timeout, `VARS2_SetGroupValid()`, `VarSet()`, `VARS2_SetById()`) — see `VARS2_spec.md` |
 | `tests/run_validator_tests.py` | Runs the validator on `tests/fixtures/` (`pass_*` / `fail_*`) |
 | `tests/compile_check.py` | Compiles the generated C with `gcc -std=c99 -Wall -Wextra -pedantic` on the PC (stubs in `tests/stub/`) and runs table consistency checks |
-| `tests/test_vars2.py` | PC test of `VARS2.c`: RX, timeout, group validity, by-id API, TX periods / pacing, tunnel callback, legacy wrapper round trip |
+| `tests/test_vars2.py` | PC test of `VARS2.c`: RX, timeout, tick wrap, group validity, by-id API, TX periods / pacing, tunnel callback |
 | `tests/test_com.py` | PC test of `COM.c` (stubs in `tests/stub_com/`): every node's own `on_can` variables at their YAML period, only `0x180+node`, a received `0x110+node` changes nothing |
-| `tests/test_compat.py` | Old vs new: builds `tests/test_compat.c` with the sources of `--ref` (default `main`) and with the working tree; CAN / tunnel frames and `VAR_GetVariable()` results must be identical for all six nodes |
 | `tests/test_tunnel.py` | ELECON tunnel (`RPISERP.c`, `SCOM.c`) on top of VARS2 |
 
 ## What is generated
@@ -52,13 +51,13 @@ scratch compile check).
   its own type with the subgroups as members. Access: `Vars2.GlobalEnergy.Battery.Soc_pct.value`.
 - `sVars` with all top-level groups, `extern sVars Vars2`, `VARS_COUNT`, `VAR_MAX_ID`,
   `VARS_ON_CAN_COUNT`.
-- `.c`: `Vars2`, `const sVarMeta VarMeta[]` (sorted by id: pointer to the field, legacy scale, id,
-  period, timeout, legacy `VAR_*` id, type, producer `NODEID_*`, flags),
-  `const uint16_t VarIdToIndex[VAR_MAX_ID + 1]` (`VAR_IDX_UNKNOWN` = 0xFFFF) and compile-time size
-  checks: every struct is a plain array of 8-byte items, so `VARS2_SetGroupValid()` can walk it.
+- `.c`: `Vars2`, `const sVarMeta VarMeta[]` (sorted by id: pointer to the field, id, period, timeout,
+  type, producer `NODEID_*`, flags), `const uint16_t VarIdToIndex[VAR_MAX_ID + 1]` (`VAR_IDX_UNKNOWN` =
+  0xFFFF) and compile-time size checks: every struct is a plain array of 8-byte items, so
+  `VARS2_SetGroupValid()` can walk it.
 
-The generated `.c` includes `VARS.h` (legacy ids, until part C of the direct-access task) and
-`MCAN.h` from `UHA_COMMON/Inc`.
+The generated `.c` includes `MCAN.h` (`NODEID_*`) from `UHA_COMMON/Inc`. `legacy` / `legacy_scale` in the
+YAML are not used by the firmware (only by UhaGatePy for `uha.json`).
 
 ## Rules for changing the YAML
 

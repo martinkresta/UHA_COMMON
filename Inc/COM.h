@@ -21,10 +21,10 @@
 
 
 #define  CMD_BUTTON_STATE     0x100
-#define  CMD_VAR_VALUE		    0x110   // old variable format: no longer sent; delete once no APP.c has its RX case (VARS2 step 6b part B)
 #define  CMD_GESTURE			    0x120
 #define  CMD_AC_REMOTE_REQ    0x130
 #define  CMD_RECU_REMOTE_REQ  0x140
+#define  CMD_VARS2            0x180
 
 
 
@@ -83,8 +83,6 @@ uint8_t COM_GetNodeStatus(uint8_t nodeId);
 int16_t COM_GetNetworkStatus(void);
 uint8_t COM_GetNodeId(void);
 
-// temporary: sends one of this node's variables now (only dead SCOM code uses it)
-void COM_SendVariable(uint16_t varId);
 void COM_SendMessage(uint16_t cobid, uint8_t* data, uint8_t dlc);
 
 void COM_SendGesture(uint8_t gestureId);
@@ -99,8 +97,6 @@ uint8_t COM_SendSysInfoCommon(uint8_t type);
 // function  for sending UHAMON messages
 void COM_SendUhamonMessage(uint8_t* uhamonMsg);
 
-// temporary no-op: VARS2 sends this node's variables by the YAML period_ms (removed in part C)
-void COM_AddStreamedVariable(uint16_t varId, uint16_t period);
 
 uint8_t COM_GetRxMessage( s_CanRxMsg* msg);
 
