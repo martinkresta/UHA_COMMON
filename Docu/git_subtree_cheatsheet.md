@@ -1,5 +1,7 @@
 # 🚀 Git Subtree Cheat Sheet
 
+> No longer used by any node: ASW_RECU_NUCLEO switched back to the linked UHA_COMMON (Nov 2026, VARS2 part C).
+
 ### 🔹 Initial setup (add subtree)
 ```bash
 git remote add <alias> https://github.com/<user>/<repo>.git

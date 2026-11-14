@@ -28,7 +28,7 @@ Facts checked in the code (2026-11-14):
   (ELECON slot 1 = 80 Ah → `BMS3_*`, slot 2 = 220 Ah → `BMS2_*`; ELECON_D slot 2 = 251 Ah → `BMS1_*`, slot 1
   unused but also mapped to `BMS1_*`). BMS values are published only `if (Active)` with `valid = 1`, so a
   silent BMS freezes as valid; `BMS.c` never clears `Active`.
-- `ASW_RECU_NUCLEO` has its own copy of the shared code in `UhaCommon/`; keep it identical.
+- `ASW_RECU_NUCLEO` has its own copy of the shared code in `UhaCommon/`; keep it identical. **Done in part C: RECU uses the linked UHA_COMMON again, `UhaCommon/` removed.**
 - UhaGatePy does not depend on YAML group names. `uha.json` uses the YAML `legacy` names and `legacy_scale`,
   `uha2.json` uses the YAML names.
 
@@ -200,7 +200,7 @@ After the last node. Branch `feature/vars2_direct_access_cleanup` from `main`.
    `Legacy` functions and names in `VARS2.c/.h`, `LegacyScale` / `LegacyId` from `VarMeta` and the generator.
 2. YAML: `legacy` and `legacy_scale` stay (UhaGatePy uses them for `uha.json`); the generator ignores them,
    the validator keeps accepting them and drops the `VARS.h` check. Update the header comments of the YAML.
-3. Sync `ASW_RECU_NUCLEO/UhaCommon`.
+3. Sync `ASW_RECU_NUCLEO/UhaCommon`. **Done in part C: RECU uses the linked UHA_COMMON again, `UhaCommon/` removed.**
 4. Check build of all six nodes, then restore their `Deployment/` (no version bump, nothing to flash: only
    unused code goes).
 5. Update `VARS2_spec.md`, `VarDefs/README.md`, `CLAUDE.md` files to the new API.

@@ -126,7 +126,7 @@ BMS_UartRxCallback(huart, len, bms1, bms2)
 ### ELM — AC Energy Meter
 **Files:** `ELM.h` / `ELM.c`
 
-Pulse-counting AC energy metering. Maps GPIO pins to VARS IDs.
+Pulse-counting AC energy metering. Maps GPIO pins to VARS2 ids (`VID_*`).
 
 ```c
 ELM_Init(numOfMeters)
