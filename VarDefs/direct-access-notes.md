@@ -494,3 +494,85 @@ CAN RX in the main loop).
 
 v001.05, CRC `0xE65E9036`, 36 warnings (37 before: unused `fc_temp` gone). text 65236 → 64916 (−320 B),
 data 544 → 544, bss 9552 → 7800 (−1752 B), before = v001.04 code with `UhaCommon` before part A.
+
+## Part B — ELECON_D (node 7), v001.21
+
+Branch `ASW_ELECON_D` `feature/vars2_direct_access`. No `UHA_COMMON` change.
+
+### Inventory (old API, before)
+
+| Where | Call | Class | Now |
+|---|---|---|---|
+| `APP.c:112-115` | `TEMP_AssignSensor(..., VAR_TEMP_BOARD_ELECON_D / DILNA / AKUPACK1 / KOLARNA)` | by id | `VID_*_C` |
+| `APP.c:244-246` | `ELM_AddMeter(..., VAR_CONS_AXPERT / EVSE / WS_HEATING_WH)` | by id | `VID_*` (power id + 10) |
+| `APP.c:144-239` | `COM_AddStreamedVariable()` × 77 | TX config | removed (YAML: same 77 variables / periods) |
+| `APP.c:63,66` | `VAR_Init()`, `VAR_EnableVars2Read()` | — | removed |
+| `APP.c:422` | `VAR_GetVariable(VAR_TEMP_AKUPACK1)` (akupack heater) | read (own) | `mpTemps->PackWorkshop_C` |
+| `APP.c:451,458` | `VAR_GetVariable(VAR_MPPT_SOLAR_VOLTAGE_V100)` (exterior light) | read (ELECON) | `mpMppt->SolarVoltage_V` |
+| `LEMON.c:93-94` | `VAR_GetVariable(VAR_AXPERT_SOLAR_W / BAT_CURRENT_A)` | read (own) | `mpAxpert->SolarPower_W / BatCurrent_A` |
+| `LEMON.c:438` | `VAR_GetVariable(VAR_BAT_SOC, NULL)` | read (ELECON) | `mpGlobalBattery->Soc_pct` |
+| `LEMON.c:227-238` | `VAR_SetVariable(VAR_STRG2_* / LLOAD2_* / LPV2_*)` × 12 | produced | `WorkshopEnergy.{Storage,Load,Pv}` |
+| `LEMON.c:245-329` | `VAR_SetVariable(VAR_BMS1_*)` × 37 (×2 slots) | produced | JKBMS `Publish()` → `PackWorkshop251Ah` |
+| `AXPERT.c:107-111,295-302,323-325` | `VAR_SetVariable(VAR_AXPERT_*)` × 16 | produced | `mpVars->*`, `VARS2_SetGroupValid()` |
+| `SHUNT.c:123,127` | `VAR_SetVariable(VAR_SHUNT_PCK1_CURRENT_A100)` | produced | `VarSet(&mpVars->Current_A)` |
+| `AC.c` | `#include "VARS.h"` (unused) | — | removed |
+
+Wiring (`APP.c`): `SHUNT_Init(&hspi1, &Vars2.ShuntWorkshop)`, `AXPERT_Init(&hlpuart1, &Vars2.Axpert)`,
+`LEMON_Init(&huart2, &Vars2.WorkshopEnergy, &Vars2.PackWorkshop251Ah, &Vars2.Axpert, &Vars2.GlobalEnergy.Battery)`
+(LEMON hands the pack group to `BMS_Init()`); `APP.c` keeps const pointers to `Temperatures.EleconD` and `Mppt`.
+
+### Constants (old → new)
+
+| Where | Old | New | Same result? |
+|---|---|---|---|
+| akupack heater target day | `reqTemp = 100` (0.1 degC) | `10.0f` degC | yes (0.1 degC sensor steps, thresholds exact in float) |
+| akupack heater target night | `70` | `7.0f` degC | yes |
+| akupack heater hysteresis | `hyst = 5` | `0.5f` degC | yes |
+| exterior light on (sun sets) | `MPPT_SOLAR_VOLTAGE_V100 < 1000` | `SolarVoltage_V < 10.0f` | old compared the value rounded to 0.01 V: differs only within 0.005 V of the threshold |
+| exterior light off (sun rises) | `> 2000` | `> 20.0f` V | same as above |
+| LEMON global SOC | `uint16_t VAR_GetVariable(VAR_BAT_SOC)` (rounded int) | `(uint16_t)(Soc_pct + 0.5f)` | yes (same rounding) |
+| LEMON `Prod.ChargeCurrent` | `VAR_AXPERT_BAT_CURRENT_A / 10.0` | `BatCurrent_A.value / 10.0` | yes (kept; see findings) |
+| LEMON load control (SOC %, cell mV, current A, balance) | — | unchanged (read from the BMS struct / own floats) | yes |
+| published scaling | `* 100`, `* 10`, `/ 100`, `(int16_t)` casts | removed; `BatVoltageV100 / 100.0f`, `CurrentA10 / 10.0f`, `VoltageV10 / 10.0f`, `mA / 1000.0f`, `mV / 1000.0f` | values now exact (see below) |
+
+### Changes visible on the bus / web
+
+- Frames carry the exact value instead of the old int16 truncation: `STRG2_SOC` (was 0.01 %), `STRG2_CURRENT_A`,
+  `STRG2_VOLTAGE_V`, `BMS1_CURRENT_A`, `BMS1_VOLTAGE_V`, `AXPERT_BAT_VOLTAGE_V` (were 0.1), power / energy /
+  `OPT_CHARGING_A` / `LLOAD2_*` / `LPV2_*` / `AXPERT_ENERGY_TODAY_WH` (were whole units), `SHUNT_PCK1_CURRENT_A`
+  (0.01 A). ELECON (still on the wrappers) reads `STRG2_*`, `LLOAD2_*`, `LPV2_*` rounded instead of truncated:
+  ±1 LSB, e.g. GEMON `totalOptBalanceCurrent` can be 1 A higher.
+- `PackWorkshop251Ah` (`BMS1_*`) goes invalid after 3 missed BMS frames (was: frozen, valid). Intended (task).
+- `STRG2_CAPACITY_AH` has the storage validity (decision 4).
+
+### Findings to report (not changed)
+
+1. **LEMON global SOC ignores validity** (`LEMON.c` `LoadControlLogic()`): when ELECON stops sending, VARS2 clears
+   `.valid` after 3 s but the last value stays, so EVSE / heating / all-loads control keeps using a frozen
+   global SOC (as before). Suggestion: when `!Soc_pct.valid`, use only the local conditions for "on" (no switch
+   on based on the global SOC) and keep the "off" conditions; or treat invalid as an off condition.
+2. **Axpert never invalid**: the `validflag = 0` branches return before writing, so a silent Axpert freezes as
+   valid (decision 5). Suggestion: invalid after N seconds without a parsed QPIGS.
+3. **Akupack heater ignores validity**: on a sensor failure the last value is kept; if the sensor was never
+   valid, TEMP publishes -3276.8 degC and the heater stays on. Suggestion: heater off when `!PackWorkshop_C.valid`.
+4. **Exterior light ignores validity** of the MPPT solar voltage (frozen value = state kept). Probably fine.
+5. **LEMON `Prod.ChargeCurrent = BatCurrent_A / 10`**: `AXPERT_BAT_CURRENT_A` is in whole A
+   (`BatChargingA - BatDischargingA`), so the value is 10x too small. It only feeds `Load.LoadCurrent`, which is
+   not published or used.
+
+### Removed dead code
+
+Second pack slot (`Pack1_Ah`, `Bms1`, `mBms2`, `IsBmsUsed()`, the duplicate `BMS1_*` publishing of slot 1),
+`VARS.h` include in `AC.c`. `huart3` is no longer used by LEMON (still initialised by CubeMX; its RX event
+branch in `APP.c` calls `LEMON_UartRxCallback()`, which ignores it).
+
+### Concurrency
+
+UART (`AXPERT_UartRxCallback()`, `LEMON_UartRxCallback()` → `BMS_UartRxCallback()`), SPI (shunt CS), I2C (EXTDI)
+and EXTI (`ELM_ExtiCallback()`) callbacks only set flags / counters. `Vars2` is written in the 100 ms
+(TEMP, SHUNT) and 1 s tasks (ELM, AXPERT, LEMON incl. JKBMS, APP) in the main loop.
+
+### Build
+
+v001.21, CRC `0x928F6374`, 54 warnings (as before). text 109420 → 106716 (−2704 B), data 904 → 904,
+bss 22744 → 20544 (−2200 B), before = v001.20 code with `UHA_COMMON` before part A.
