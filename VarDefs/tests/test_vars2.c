@@ -4,8 +4,7 @@
  * Real VARS2.c + uha_vars_gen.c; HAL_GetTick() and MCAN_SendFrame() are
  * mocked. Covers RX into Vars2, receive timeout, own values never overwritten,
  * VARS2_SetGroupValid() on groups and containers, VarSet(), VARS2_SetById(),
- * YAML-driven TX (periods, 1 CAN frame per 10 ms, frame hook, tunnel callback)
- * and the legacy wrapper round trip. Run via tests/test_vars2.py.
+ * YAML-driven TX (periods, 1 CAN frame per 10 ms, frame hook, tunnel callback). Run via tests/test_vars2.py.
  */
 
 #include <stdio.h>
@@ -349,12 +348,6 @@ static void test_tx(void)
 	CHECK(frames == gTxN);
 	CHECK(gHookN == gTxN && gHookCobid == 0x180u + node);   /* every CAN frame also to the hook */
 	printf("tx: %d frames in 60 s from node %u\n", gTxN, node);
-
-	/* VARS2_SendLegacy(): own variable now, other node's ignored */
-	gTxN = 0;
-	VARS2_SendLegacy(VID_AXPERT_BAT_VOLTAGE_V);
-	VARS2_SendLegacy(VID_BAT_SOC);
-	CHECK(gTxN == 1 && (gTx[0].data[0] | (gTx[0].data[1] << 8)) == VID_AXPERT_BAT_VOLTAGE_V);
 	VARS2_SetFrameHook(NULL);
 }
 
@@ -393,42 +386,6 @@ static void test_local(void)
 	printf("local: %d tunnel frames in 30 s\n", gLocN);
 }
 
-static void test_legacy_roundtrip(void)
-{
-	uint16_t k;
-	int32_t raw;
-	int bad = 0, n = 0;
-
-	for (k = 0; k < VARS_COUNT; k++)
-	{
-		const sVarMeta* m = &VarMeta[k];
-		Reset(m->Producer);
-		for (raw = -32768; raw <= 32767; raw++)
-		{
-			uint16_t inv = 0;
-			uint8_t valid = (uint8_t)(raw & 1);
-			int16_t back;
-			if (VARS2_SetLegacy(m->LegacyId, (int16_t)raw, valid) != 1) bad++;
-			back = VARS2_GetLegacy(m->LegacyId, &inv, 0x01);
-			if (back != (int16_t)raw || (inv != 0) != (valid == 0)) bad++;
-			n++;
-		}
-	}
-	printf("legacy round trip: %d values, %d bad\n", n, bad);
-	CHECK(bad == 0);
-
-	/* not own / unknown */
-	Reset(NODEID_TECHM);
-	CHECK(VARS2_SetLegacy(VID_BAT_VOLTAGE_V, 520, 1) == 0);   /* TECHM APP.c init write: ignored */
-	{
-		uint16_t inv = 0;
-		CHECK(VARS2_GetLegacy(VID_BAT_VOLTAGE_V, &inv, 0x01) == 0 && inv == 0x01);
-		inv = 0;
-		CHECK(VARS2_GetLegacy(2, &inv, 0x01) == 0 && inv == 0x01);
-		CHECK(VARS2_GetLegacy(2, NULL, 0x01) == 0);
-	}
-}
-
 int main(void)
 {
 	test_init();
@@ -439,7 +396,6 @@ int main(void)
 	test_set_by_id();
 	test_tx();
 	test_local();
-	test_legacy_roundtrip();
 	printf("%d checks, %d failed\n", checks, fails);
 	if (fails) { printf("TEST_VARS2 FAILED\n"); return 1; }
 	printf("TEST_VARS2 PASSED\n");

@@ -82,26 +82,12 @@ void COM_Update_10ms(void)
 }
 
 
-void COM_SendVariable(uint16_t varId)
-{
-	VARS2_SendLegacy(varId);   // temporary (dead SCOM code), removed with SCOM
-}
-
 void COM_SendMessage(uint16_t cobid, uint8_t* data, uint8_t dlc)
 {
 	MCAN_SendFrame(cobid + mNodeId, data, dlc);
 }
 
 
-
-
-// temporary no-op: VARS2 sends this node's variables by the YAML period_ms;
-// removed in part C of the direct-access task
-void COM_AddStreamedVariable(uint16_t varId, uint16_t period)
-{
-	(void)varId;
-	(void)period;
-}
 
 
 // wrapper for sending gesture command

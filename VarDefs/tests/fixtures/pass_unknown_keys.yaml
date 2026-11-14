@@ -1,6 +1,5 @@
 # expect-warning: unknown key 'colour'
 # expect-warning: unknown top-level key 'extra'
-# expect-warning: no 'legacy' define
 version: 1
 nodes: {N1: 1, N2: 2, RPI: 15}
 defaults: {type: float, timeout_ms: auto, on_can: true}

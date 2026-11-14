@@ -84,21 +84,4 @@ static inline void VarSetU32(sVarU32* pVar, uint32_t value, uint8_t valid)
 uint8_t VARS2_SetById(eVarId id, float value, uint8_t valid);
 
 
-/* ---- temporary compatibility for unconverted node code (VARS.c wrappers),
- * removed in part C of the direct-access task ---- */
-
-/* VAR_SetVariable(): own variable from the old int16 raw value (float: raw /
- * LegacyScale, integer types: raw). Returns 0 and writes nothing for an
- * unknown id or a variable produced by another node. */
-uint8_t VARS2_SetLegacy(uint16_t legacyVarId, int16_t raw, uint8_t valid);
-
-/* VAR_GetVariable(): value converted to the old int16 (float: value *
- * LegacyScale rounded to nearest, clamped). Sets INVALID_FLAG-style bit
- * invalidFlag in *invalid (may be NULL) if the value is invalid; returns 0
- * with the flag set for an unknown id. */
-int16_t VARS2_GetLegacy(uint16_t legacyVarId, uint16_t* invalid, uint16_t invalidFlag);
-
-/* COM_SendVariable(): sends one variable now (CAN 0x180+node + hook) */
-void VARS2_SendLegacy(uint16_t legacyVarId);
-
 #endif /* INC_VARS2_H_ */

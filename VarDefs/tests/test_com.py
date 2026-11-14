@@ -1,7 +1,7 @@
 """
 test_com.py - PC unit test of UHA_COMMON/Src/COM.c (VARS2 direct access: YAML-driven TX).
 
-Compiles COM.c + VARS.c + VARS2.c + uha_vars_gen.c + test_com.c (MCAN and HAL_GetTick mocked,
+Compiles COM.c + VARS2.c + uha_vars_gen.c + test_com.c (MCAN and HAL_GetTick mocked,
 stub main.h / APP_INFO.h in stub_com/) with gcc and runs it. The comparison with the code
 before direct access (frames, values) is in test_compat.py.
 
@@ -33,7 +33,7 @@ def run(cmd, show=True):
 
 def build(cc, com_c, exe):
     cmd = [cc, "-std=c99", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter",
-           com_c, os.path.join(SRC, "VARS.c"), os.path.join(SRC, "VARS2.c"),
+           com_c, os.path.join(SRC, "VARS2.c"),
            os.path.join(SRC, "uha_vars_gen.c"), os.path.join(HERE, "test_com.c"),
            "-I", os.path.join(HERE, "stub_com"), "-I", INC, "-o", exe]
     rc, _ = run(cmd)

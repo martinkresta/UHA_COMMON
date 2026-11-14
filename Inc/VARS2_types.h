@@ -38,19 +38,16 @@ typedef char VARS2_SIZE_sVarU32[(sizeof(sVarU32) == VAR_ITEM_SIZE && offsetof(sV
 #define VMF_ON_CAN       0x01u   /* published on CAN */
 
 #define VAR_IDX_UNKNOWN  0xFFFFu /* VarIdToIndex: unknown id */
-#define VAR_LEGACY_NONE  0xFFFFu /* no legacy id */
 
 typedef struct
 {
   void*    pVar;          /* -> sVarF32 / sVarI32 / sVarU32 field in Vars2 */
-  float    LegacyScale;   /* old int16 raw = physical * LegacyScale */
   uint16_t Id;
   uint16_t PeriodMs;
   uint16_t TimeoutMs;
-  uint16_t LegacyId;      /* old VARS.h id, VAR_LEGACY_NONE if none */
   uint8_t  Type;          /* eVarType */
   uint8_t  Producer;      /* NODEID_* */
   uint8_t  Flags;         /* VMF_* */
-} sVarMeta;               /* 20 B on ARM */
+} sVarMeta;               /* 16 B on ARM */
 
 #endif /* VARS2_TYPES_H_ */

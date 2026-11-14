@@ -52,7 +52,7 @@ def main() -> int:
             shutil.copy(os.path.join(ELECON, "Src", f), work)
         exe = os.path.join(tmp, "test_tunnel.exe")
         cmd = [a.cc, "-std=gnu99", "-Wall", "-Wextra", "-Wno-pointer-to-int-cast", "-Wno-unused-parameter",
-               os.path.join(SRC, "uha_vars_gen.c"), os.path.join(SRC, "VARS2.c"), os.path.join(SRC, "VARS.c"), os.path.join(SRC, "circbuf.c"),
+               os.path.join(SRC, "uha_vars_gen.c"), os.path.join(SRC, "VARS2.c"), os.path.join(SRC, "circbuf.c"),
                os.path.join(HERE, "test_tunnel.c"),
                "-I", os.path.join(HERE, "stub_rsp"), "-I", work, "-I", INC, "-o", exe]
         rc, out = run(cmd)

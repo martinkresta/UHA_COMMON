@@ -2,8 +2,7 @@
  * test_tunnel.c - PC unit test of the ELECON VARS2 tunnel (step 2):
  * ASW_ELECON/Core/Src/RPISERP.c (TX FIFO, chained TX) and SCOM.c (hook,
  * local publishing incl. NETWORK_STATUS, no old 0x221 traffic) with a simulated UART/DMA.
- * RPISERP.c and SCOM.c are #included so their static functions are covered; VARS2.c and
- * the VARS.c wrappers (direct access) are linked.
+ * RPISERP.c and SCOM.c are #included so their static functions are covered; VARS2.c is linked.
  * Run via tests/test_tunnel.py.
  */
 
@@ -12,7 +11,6 @@
 #include <stdlib.h>
 #include "uha_vars_gen.h"
 #include "VARS2.h"
-#include "VARS.h"
 #include "MCAN.h"
 #include "COM.h"
 #include "RTC.h"
@@ -36,7 +34,6 @@ static USART_TypeDef gUsart;
 static DMA_Channel_TypeDef gDmaTx, gDmaRx;
 static UART_HandleTypeDef gUart;
 
-/* VAR_SetVariable()/VAR_GetVariable(): the real VARS.c wrappers over Vars2 are linked */
 static int gCanSent;
 uint8_t MCAN_SendFrame(uint16_t cobid, uint8_t* data, uint8_t dlc) { (void)cobid; (void)data; (void)dlc; gCanSent++; return 1; }
 void COM_SendMessage(uint16_t cobid, uint8_t* data, uint8_t dlc) { (void)cobid; (void)data; (void)dlc; }
@@ -131,16 +128,30 @@ static void test_rx_tunnel_and_reject(void)
 static void test_own_tx_tunnel(void)
 {
 	sPkt p;
+	int t, i, found = 0, n184 = 0;
+	float v;
 	VARS2_Init(NODEID_ELECON);
 	SetupLink();
 	gBudget = 100000; gCanSent = 0;
-	VAR_SetVariable(VAR_BAT_VOLTAGE_V10, 532, 1);
-	VARS2_SendLegacy(VAR_BAT_VOLTAGE_V10);
-	LinePump();
-	CHECK(gCanSent == 1);
-	CHECK(gCapN == 1);
-	p = Decode(0);
-	CHECK(p.ok && p.id == 0x184 && p.data[0] == 11 && p.data[1] == 0 && p.data[6] == 1);
+	VarSet(&Vars2.GlobalEnergy.Battery.Voltage_V, 53.2f, 1);   /* own on_can variable (id 11, 1 s) */
+	for (t = 0; t < 200; t++)   /* 2 s of VARS2 TX: every CAN frame also goes to the tunnel */
+	{
+		gTick += 10;
+		VARS2_Update_10ms();
+		LinePump();
+	}
+	for (i = 0; i < gCapN; i++)
+	{
+		p = Decode(i);
+		if (p.ok && p.id == 0x184) n184++;
+		if (p.ok && p.id == 0x184 && p.data[0] == 11 && p.data[1] == 0)
+		{
+			memcpy(&v, &p.data[2], 4);
+			if (v == 53.2f && p.data[6] == 1) found = 1;
+		}
+	}
+	CHECK(gCanSent > 0 && gCanSent == n184);
+	CHECK(found);
 }
 
 static void test_local_and_no_old_traffic(void)
@@ -151,11 +162,11 @@ static void test_local_and_no_old_traffic(void)
 
 	VARS2_Init(NODEID_ELECON);
 	SetupLink();
-	for (i = 0; i < VARS_COUNT; i++)   /* own variables written by the (unconverted) producers */
+	for (i = 0; i < VARS_COUNT; i++)   /* own variables written by their producers */
 	{
 		if (VarMeta[i].Producer == NODEID_ELECON && VarMeta[i].Id != VID_NETWORK_STATUS)
 		{
-			VAR_SetVariable(VarMeta[i].LegacyId, (int16_t)(VarMeta[i].Id + 1), 1);
+			(void)VARS2_SetById((eVarId)VarMeta[i].Id, (float)(VarMeta[i].Id + 1), 1);
 		}
 	}
 	/* NETWORK_STATUS: set by SCOM every 5 s from COM_GetNetworkStatus() (mock: 0x1F) */
