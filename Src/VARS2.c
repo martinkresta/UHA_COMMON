@@ -3,6 +3,7 @@
  *
  * VARS2 shared variable protocol: TX of this node's variables from Vars2 by
  * their YAML period (CAN 0x180+node, tunnel callback for on_can: false),
+ * send: on_change variables also when their value / valid changed (OnChangeDue()),
  * RX of the other nodes' variables into Vars2, receive timeout.
  * See UHA_COMMON/VarDefs/VARS2_spec.md.
  *
@@ -20,12 +21,20 @@
 
 #define VARS2_CAN_MAX_PER_CALL    2u   /* max 2 frames per 10 ms (tests: VARS2_TEST_CAN_MAX in test_vars2.c, test_com.c) */
 #define VARS2_LOCAL_MAX_PER_CALL  4u   /* bounds the tunnel burst per 10 ms tick */
+#define VARS2_ON_CHANGE_MIN_MS    1000u   /* send: on_change - min gap between two sends of one variable */
 
-/* protocol state only; value + valid live in Vars2 */
+/* protocol state only; value + valid live in Vars2.
+ * A row is either received (RxTick used) or own (TxTick, and for VMF_ON_CHANGE TxValue/TxValid used),
+ * never both, so the last sent value shares the 4 bytes of RxTick: 8 B per row as before. */
 typedef struct
 {
-	uint32_t RxTick;   /* received variables: last frame */
+	union
+	{
+		uint32_t RxTick;      /* received variables: tick of the last frame */
+		uint8_t  TxValue[4];  /* own on_change variables: 4-byte value last sent */
+	} u;
 	uint16_t TxTick;   /* own variables: low 16 bits of the last send tick */
+	uint8_t  TxValid;  /* own on_change variables: valid flag last sent */
 } sVars2State;
 
 static sVars2State mState[VARS_COUNT];  /* indexed like VarMeta[]/VarIdToIndex[] */
@@ -71,8 +80,13 @@ void VARS2_Init(uint8_t thisNodeId)
 	memset(&Vars2, 0, sizeof Vars2);   /* all values 0, all invalid: nothing produced / received yet */
 	for (i = 0; i < VARS_COUNT; i++)
 	{
-		mState[i].RxTick = now;
+		mState[i].u.RxTick = now;   /* own on_change rows: overwritten below, nothing sent yet */
 		mState[i].TxTick = (uint16_t)now;
+		mState[i].TxValid = 0;
+		if (VarMeta[i].Producer == thisNodeId)
+		{
+			memset(mState[i].u.TxValue, 0, 4);   /* = Vars2 after the memset: 0, invalid */
+		}
 	}
 }
 
@@ -125,9 +139,45 @@ static void SpreadFirstSends(uint8_t onCan, uint32_t now)
 	}
 }
 
+/*
+ * send: on_change - an own VMF_ON_CHANGE variable is due early when its value or valid flag
+ * differs from what was LAST SENT (not from the previous Vars2 value: a short blip that
+ * returns to the sent state is not sent), but not sooner than VARS2_ON_CHANGE_MIN_MS after
+ * its last send. The normal period check in IsDue() stays as the refresh.
+ */
+static uint8_t OnChangeDue(uint16_t idx, uint32_t now)
+{
+	const sVarMeta* meta = &VarMeta[idx];
+	const sVars2State* st = &mState[idx];
+
+	if ((meta->Flags & VMF_ON_CHANGE) == 0u)
+	{
+		return 0;
+	}
+	if ((uint16_t)((uint16_t)now - st->TxTick) < VARS2_ON_CHANGE_MIN_MS)
+	{
+		return 0;
+	}
+	return (memcmp(st->u.TxValue, meta->pVar, 4) != 0) || (st->TxValid != *ValidOf(meta));
+}
+
 static uint8_t IsDue(uint16_t idx, uint32_t now)
 {
-	return (uint16_t)((uint16_t)now - mState[idx].TxTick) >= VarMeta[idx].PeriodMs;
+	return ((uint16_t)((uint16_t)now - mState[idx].TxTick) >= VarMeta[idx].PeriodMs)
+	       || OnChangeDue(idx, now);
+}
+
+/* a frame of own row idx was built: remember the send tick (and for on_change what was sent) */
+static void MarkSent(uint16_t idx, uint32_t now)
+{
+	const sVarMeta* meta = &VarMeta[idx];
+
+	mState[idx].TxTick = (uint16_t)now;
+	if (meta->Flags & VMF_ON_CHANGE)
+	{
+		memcpy(mState[idx].u.TxValue, meta->pVar, 4);
+		mState[idx].TxValid = *ValidOf(meta);
+	}
 }
 
 
@@ -143,7 +193,7 @@ void VARS2_Update_10ms(void)
 	{
 		const sVarMeta* meta = &VarMeta[idx];
 
-		if (!IsOwn(meta) && *ValidOf(meta) && (now - mState[idx].RxTick) > meta->TimeoutMs)
+		if (!IsOwn(meta) && *ValidOf(meta) && (now - mState[idx].u.RxTick) > meta->TimeoutMs)
 		{
 			*ValidOf(meta) = 0;
 		}
@@ -162,7 +212,7 @@ void VARS2_Update_10ms(void)
 		if (IsOwnTx(&VarMeta[idx], 1) && IsDue(idx, now))
 		{
 			SendOnCan(idx);
-			mState[idx].TxTick = (uint16_t)now;
+			MarkSent(idx, now);
 			mTxNext = (uint16_t)((idx + 1u) % VARS_COUNT);
 			sent++;
 		}
@@ -193,7 +243,7 @@ void VARS2_UpdateLocal_10ms(VARS2_FrameHook cb)
 		if (IsOwnTx(&VarMeta[idx], 0) && IsDue(idx, now))
 		{
 			BuildFrame(idx, data);
-			mState[idx].TxTick = (uint16_t)now;
+			MarkSent(idx, now);
 			cb(VARS2_COBID_BASE + mThisNodeId, data);
 			sent++;
 		}
@@ -221,7 +271,7 @@ uint8_t VARS2_ProcessRxFrame(uint16_t cobId, uint8_t dlc, uint8_t rtr, const uin
 	{
 		memcpy(meta->pVar, &data[2], 4);
 		*ValidOf(meta) = (data[6] & VARS2_FLAG_VALID) ? 1u : 0u;
-		mState[meta - VarMeta].RxTick = HAL_GetTick();
+		mState[meta - VarMeta].u.RxTick = HAL_GetTick();
 	}
 
 	if (mFrameHook != NULL)

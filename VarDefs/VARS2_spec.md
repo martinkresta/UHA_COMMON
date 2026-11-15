@@ -54,6 +54,7 @@ groups:
     producer: <NODE>                      # one producer per group (on the group or its container)
     struct: <Type>                        # optional: shared C type sVars<Type> (identical fields)
     validity: group | per_field           # default group: VARS2_SetGroupValid(); per_field: by id
+    send: periodic | on_change            # default periodic; inherited container -> subgroup -> var
     vars:                                 # either vars ...
       - id: <uint16>
         name: <UPPER_SNAKE>               # VID_<name>, name in uha2.json
@@ -61,18 +62,28 @@ groups:
         type: float|int32|uint32|bool|enum   (default float)
         enum: <EnumName>                  # if type: enum
         unit: "<unit>"
-        period_ms: <int>                  # publish period of the producer (VARS2 TX)
+        period_ms: <int>                  # publish period of the producer (VARS2 TX); on_change: refresh
+        send: periodic | on_change        # on_change: TX on change of value/valid (min 1 s apart) + period
         timeout_ms: <int>|auto            # auto = 3 x period_ms (receiver: .valid cleared)
         on_can: false                     # not on CAN, only through the ELECON tunnel to the RPi
         count: <n>                        # array: ids id .. id+n-1
         receivers: [NODE, ...]            # documentation only
-        legacy: VAR_...                   # old int16 name, kept for UhaGatePy (uha.json); not used by the FW
+        legacy: VAR_...                   # optional old int16 name, kept for UhaGatePy (uha.json); not used by the FW
         legacy_scale: <number>            # old int16 raw = physical * legacy_scale (uha.json only)
+        log_s: 10 | 60                    # UhaGatePy: DB log period (agg avg / delta)
+        agg: avg | delta | event          # UhaGatePy: event = one row per change (table events), no log_s
+        power_w: <number>                 # documentation only: load of a light / output in W
         desc: "<text>"
   <Container>:                            # ... or subgroups (max 3 levels: Vars2.Container.Group.Field)
     subgroups:
-      <Group>: {producer, validity, vars}
+      <Group>: {producer, validity, send, vars}
 ```
+
+**States** (`groups.States`, step 2a, `UHA_COMMON/tasks/vars2_states_on_change.md`): discrete states (lights,
+relays, modes, setpoints) as normal variables, one subgroup per producing node (`States.IoboardU`, ...),
+`send: on_change`, `period_ms: 20000` (refresh; `timeout_ms: auto` = 60000 still fits the u16 `TimeoutMs`),
+`agg: event`, no `legacy`. Id ranges: IOBOARD_U 400–419, IOBOARD_D 420–439, TECHM 440–479, ELECON 480–489,
+ELECON_D 490–509, RECU 510–519. Lights: `uint32`, `%` 0–100 (output really set).
 
 Validator rules (`tools/vars_validate.py`):
 - unique `id` (arrays expanded), `name` and `field`; `producer`, `receivers` reference existing nodes;
@@ -81,7 +92,8 @@ Validator rules (`tools/vars_validate.py`):
   `struct` have identical fields, at most one level of `subgroups`;
 - **ELM rule:** `ELM.c` writes power to `energy id + 10` — for every `CONS_*_WH` in `Meters` the variable at
   `id + 10` must exist, be `POW_*_W` and be in the same group;
-- compatibility check against the previous released YAML: no ID/type change, no removed ID reused.
+- compatibility check against the previous released YAML: no ID/type change, no removed ID reused;
+- `send` is periodic | on_change; `agg: event` must not have `log_s`, `agg: avg | delta` need `log_s`.
 
 ---
 
@@ -109,7 +121,7 @@ extern sVars Vars2;   /* Vars2.GlobalEnergy.Battery.Soc_pct.value / .valid */
 
 ```c
 sVars Vars2;
-const sVarMeta VarMeta[VARS_COUNT] = {     /* sorted by id, 16 B each */
+const sVarMeta VarMeta[VARS_COUNT] = {     /* sorted by id, 16 B each; flags VMF_ON_CAN | VMF_ON_CHANGE */
 /* pVar                            id  period tmout  type      producer       flags */
   { &Vars2.GlobalEnergy.Battery.Soc_pct, 10, 1000, 3000, VT_FLOAT, NODEID_ELECON, VMF_ON_CAN },
 };
@@ -138,9 +150,14 @@ uint8_t VARS2_SetById(eVarId id, float value, uint8_t valid);   /* by id (TEMP, 
 - **TX:** VARS2 sends every variable this node produces by `period_ms` (CAN 0x180+node, max 2 frames per
   10 ms = `VARS2_CAN_MAX_PER_CALL`, round robin); `on_can: false` variables only through `VARS2_UpdateLocal_10ms()` (ELECON tunnel).
   The frame carries `.value` and `.valid` as they are at send time.
+- **send: on_change** (`VMF_ON_CHANGE`): an own variable is also due when its 4-byte value or valid differ
+  from what was **last sent**, at least `VARS2_ON_CHANGE_MIN_MS` (1000) after its last send (`OnChangeDue()`
+  in `VARS2.c`); `period_ms` stays as refresh. Same for the CAN path and the tunnel path. The modules just
+  write `Vars2`; a change that returns to the sent value within 1 s is not sent. Frame, RX and timeout unchanged.
 - **RX:** value and valid from the frame into `Vars2` (not for own or unknown ids); `.valid` is cleared
   when no frame arrived for `timeout_ms`. Readers only look at `.valid`.
-- **State:** `mState` (private in `VARS2.c`) holds only `RxTick` / `TxTick`.
+- **State:** `mState` (private in `VARS2.c`, 8 B per row) holds `RxTick` / `TxTick`; for own on_change rows
+  the last sent value shares the bytes of the unused `RxTick` (union) and the last sent valid the padding.
 - Everything runs in the main loop (no `Vars2` access from interrupts).
 
 ---

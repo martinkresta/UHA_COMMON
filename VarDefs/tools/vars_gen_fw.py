@@ -166,6 +166,7 @@ def gen_header(model: Model) -> str:
         f"#define VARS_COUNT         {len(vals)}",
         f"#define VAR_MAX_ID         {model.max_id}",
         f"#define VARS_ON_CAN_COUNT  {sum(1 for v in vals if v.on_can)}",
+        f"#define VARS_ON_CHANGE_COUNT {sum(1 for v in vals if v.send == 'on_change')}",
         "",
         "/* ---- variable ids ---- */",
         "typedef enum",
@@ -226,6 +227,11 @@ def gen_header(model: Model) -> str:
     return "\n".join(L)
 
 
+def _flags(v) -> str:
+    f = [n for n, on in (("VMF_ON_CAN", v.on_can), ("VMF_ON_CHANGE", v.send == "on_change")) if on]
+    return " | ".join(f) if f else "0"
+
+
 def gen_source(model: Model) -> str:
     vals = model.values
     rows = []
@@ -237,7 +243,7 @@ def gen_source(model: Model) -> str:
             f"{v.timeout_ms},",
             f"{VT[v.type]},",
             f"NODEID_{v.producer},",
-            "VMF_ON_CAN" if v.on_can else "0",
+            _flags(v),
         ])
     head = ["/* pVar", "id", "period", "tmout", "type", "producer", "flags */"]
     widths = [max(len(r[i]) for r in rows + [head]) for i in range(len(head))]
