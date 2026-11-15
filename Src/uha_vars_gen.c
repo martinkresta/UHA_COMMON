@@ -283,6 +283,25 @@ const sVarMeta VarMeta[VARS_COUNT] =
   { &Vars2.States.IoboardU.Kitchen_pct,           411, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
   { &Vars2.States.IoboardU.ScreenEast,            412, 20000, 60000, VT_ENUM,   NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
   { &Vars2.States.IoboardU.ScreenWest,            413, 20000, 60000, VT_ENUM,   NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardD.Washbasin_pct,         420, 20000, 60000, VT_UINT32, NODEID_IOBOARD_D, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardD.KitchenCounter_pct,    421, 20000, 60000, VT_UINT32, NODEID_IOBOARD_D, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardD.SewagePump,            422, 20000, 60000, VT_BOOL,   NODEID_IOBOARD_D, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Elecon.Ac300W,                  480, 20000, 60000, VT_ENUM,   NODEID_ELECON,    VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Elecon.Ac3kW,                   481, 20000, 60000, VT_ENUM,   NODEID_ELECON,    VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Elecon.Ac5kW,                   482, 20000, 60000, VT_ENUM,   NODEID_ELECON,    VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Elecon.ExteriorLight_pct,       483, 20000, 60000, VT_UINT32, NODEID_ELECON,    VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.EleconD.AcAxpert,               490, 20000, 60000, VT_ENUM,   NODEID_ELECON_D,  VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.EleconD.AcVictron,              491, 20000, 60000, VT_ENUM,   NODEID_ELECON_D,  VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.EleconD.AkupackHeater,          492, 20000, 60000, VT_BOOL,   NODEID_ELECON_D,  VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.EleconD.AkupackSetDay_C,        493, 20000, 60000, VT_FLOAT,  NODEID_ELECON_D,  VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.EleconD.AkupackSetNight_C,      494, 20000, 60000, VT_FLOAT,  NODEID_ELECON_D,  VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.EleconD.EvseRelay,              495, 20000, 60000, VT_BOOL,   NODEID_ELECON_D,  VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.EleconD.HeatingRelay,           496, 20000, 60000, VT_BOOL,   NODEID_ELECON_D,  VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.EleconD.ExteriorLight_pct,      497, 20000, 60000, VT_UINT32, NODEID_ELECON_D,  VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.EleconD.Kolarna_pct,            498, 20000, 60000, VT_UINT32, NODEID_ELECON_D,  VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.EleconD.Sklep_pct,              499, 20000, 60000, VT_UINT32, NODEID_ELECON_D,  VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Recu.RemoteMode,                510, 20000, 60000, VT_ENUM,   NODEID_RECU,      VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Recu.Limit,                     511, 20000, 60000, VT_ENUM,   NODEID_RECU,      VMF_ON_CAN | VMF_ON_CHANGE },
 };
 
 /* every struct is a plain array of 8-byte {value, valid} items (VARS2_SetGroupValid()) */
@@ -318,8 +337,12 @@ typedef char VARS2_SIZE_sVarsTemperaturesEleconD[(sizeof(sVarsTemperaturesElecon
 typedef char VARS2_SIZE_sVarsTemperatures[(sizeof(sVarsTemperatures)         ==  30u * VAR_ITEM_SIZE) ? 1 : -1];
 typedef char VARS2_SIZE_sVarsMeteo[(sizeof(sVarsMeteo)                ==   4u * VAR_ITEM_SIZE) ? 1 : -1];
 typedef char VARS2_SIZE_sVarsStatesIoboardU[(sizeof(sVarsStatesIoboardU)       ==  14u * VAR_ITEM_SIZE) ? 1 : -1];
-typedef char VARS2_SIZE_sVarsStates[(sizeof(sVarsStates)               ==  14u * VAR_ITEM_SIZE) ? 1 : -1];
-typedef char VARS2_SIZE_sVars[(sizeof(sVars) == 272u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVarsStatesIoboardD[(sizeof(sVarsStatesIoboardD)       ==   3u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVarsStatesEleconD[(sizeof(sVarsStatesEleconD)        ==  10u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVarsStatesElecon[(sizeof(sVarsStatesElecon)         ==   4u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVarsStatesRecu[(sizeof(sVarsStatesRecu)           ==   2u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVarsStates[(sizeof(sVarsStates)               ==  33u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVars[(sizeof(sVars) == 291u * VAR_ITEM_SIZE) ? 1 : -1];
 
 const uint16_t VarIdToIndex[VAR_MAX_ID + 1] =
 {
@@ -364,5 +387,15 @@ const uint16_t VarIdToIndex[VAR_MAX_ID + 1] =
   /* 380 */             256,             257, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
   /* 390 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
   /* 400 */             258,             259,             260,             261,             262,             263,             264,             265,             266,             267,
-  /* 410 */             268,             269,             270,             271
+  /* 410 */             268,             269,             270,             271, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 420 */             272,             273,             274, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 430 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 440 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 450 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 460 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 470 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 480 */             275,             276,             277,             278, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 490 */             279,             280,             281,             282,             283,             284,             285,             286,             287,             288,
+  /* 500 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 510 */             289,             290
 };
