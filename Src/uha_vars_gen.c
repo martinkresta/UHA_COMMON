@@ -269,6 +269,20 @@ const sVarMeta VarMeta[VARS_COUNT] =
   { &Vars2.PackHome80Ah.CellTemp_C[13],           379, 3000,  9000,  VT_FLOAT,  NODEID_ELECON,    0 },
   { &Vars2.PackHome80Ah.CellTemp_C[14],           380, 3000,  9000,  VT_FLOAT,  NODEID_ELECON,    0 },
   { &Vars2.PackHome80Ah.CellTemp_C[15],           381, 3000,  9000,  VT_FLOAT,  NODEID_ELECON,    0 },
+  { &Vars2.States.IoboardU.LoftWest_pct,          400, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.LoftEast1_pct,         401, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.LoftEast2_pct,         402, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.BedroomSouth_pct,      403, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.BedroomNorth_pct,      404, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.Bathroom_pct,          405, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.StairSteps_pct,        406, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.Stairs_pct,            407, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.Hallway_pct,           408, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.LivingRoom_pct,        409, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.DiningRoom_pct,        410, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.Kitchen_pct,           411, 20000, 60000, VT_UINT32, NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.ScreenEast,            412, 20000, 60000, VT_ENUM,   NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.IoboardU.ScreenWest,            413, 20000, 60000, VT_ENUM,   NODEID_IOBOARD_U, VMF_ON_CAN | VMF_ON_CHANGE },
 };
 
 /* every struct is a plain array of 8-byte {value, valid} items (VARS2_SetGroupValid()) */
@@ -303,7 +317,9 @@ typedef char VARS2_SIZE_sVarsTemperaturesElecon[(sizeof(sVarsTemperaturesElecon)
 typedef char VARS2_SIZE_sVarsTemperaturesEleconD[(sizeof(sVarsTemperaturesEleconD)  ==   4u * VAR_ITEM_SIZE) ? 1 : -1];
 typedef char VARS2_SIZE_sVarsTemperatures[(sizeof(sVarsTemperatures)         ==  30u * VAR_ITEM_SIZE) ? 1 : -1];
 typedef char VARS2_SIZE_sVarsMeteo[(sizeof(sVarsMeteo)                ==   4u * VAR_ITEM_SIZE) ? 1 : -1];
-typedef char VARS2_SIZE_sVars[(sizeof(sVars) == 258u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVarsStatesIoboardU[(sizeof(sVarsStatesIoboardU)       ==  14u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVarsStates[(sizeof(sVarsStates)               ==  14u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVars[(sizeof(sVars) == 272u * VAR_ITEM_SIZE) ? 1 : -1];
 
 const uint16_t VarIdToIndex[VAR_MAX_ID + 1] =
 {
@@ -345,5 +361,8 @@ const uint16_t VarIdToIndex[VAR_MAX_ID + 1] =
   /* 350 */             226,             227,             228,             229,             230,             231,             232,             233,             234,             235,
   /* 360 */             236,             237,             238,             239,             240,             241,             242,             243,             244,             245,
   /* 370 */             246,             247,             248,             249,             250,             251,             252,             253,             254,             255,
-  /* 380 */             256,             257
+  /* 380 */             256,             257, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 390 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 400 */             258,             259,             260,             261,             262,             263,             264,             265,             266,             267,
+  /* 410 */             268,             269,             270,             271
 };

@@ -36,6 +36,7 @@ typedef char VARS2_SIZE_sVarI32[(sizeof(sVarI32) == VAR_ITEM_SIZE && offsetof(sV
 typedef char VARS2_SIZE_sVarU32[(sizeof(sVarU32) == VAR_ITEM_SIZE && offsetof(sVarU32, valid) == VAR_VALID_OFFSET) ? 1 : -1];
 
 #define VMF_ON_CAN       0x01u   /* published on CAN */
+#define VMF_ON_CHANGE    0x02u   /* send: on_change - sent on change (min 1 s apart) + every PeriodMs as refresh */
 
 #define VAR_IDX_UNKNOWN  0xFFFFu /* VarIdToIndex: unknown id */
 

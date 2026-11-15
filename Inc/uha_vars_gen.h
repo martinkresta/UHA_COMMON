@@ -9,9 +9,10 @@
 #include <stdint.h>
 #include "VARS2_types.h"
 
-#define VARS_COUNT         258
-#define VAR_MAX_ID         381
-#define VARS_ON_CAN_COUNT  145
+#define VARS_COUNT         272
+#define VAR_MAX_ID         413
+#define VARS_ON_CAN_COUNT  159
+#define VARS_ON_CHANGE_COUNT 14
 
 /* ---- variable ids ---- */
 typedef enum
@@ -274,6 +275,20 @@ typedef enum
   VID_BMS3_CELL_TEMP_C_14      = 379,  /* PackHome80Ah, degC */
   VID_BMS3_CELL_TEMP_C_15      = 380,  /* PackHome80Ah, degC */
   VID_BMS3_CELL_TEMP_C_16      = 381,  /* PackHome80Ah, degC */
+  VID_ST_LIGHT_LOFT_WEST       = 400,  /* States.IoboardU, % */
+  VID_ST_LIGHT_LOFT_EAST_1     = 401,  /* States.IoboardU, % */
+  VID_ST_LIGHT_LOFT_EAST_2     = 402,  /* States.IoboardU, % */
+  VID_ST_LIGHT_BEDROOM_SOUTH   = 403,  /* States.IoboardU, % */
+  VID_ST_LIGHT_BEDROOM_NORTH   = 404,  /* States.IoboardU, % */
+  VID_ST_LIGHT_BATHROOM        = 405,  /* States.IoboardU, % */
+  VID_ST_LIGHT_STAIR_STEPS     = 406,  /* States.IoboardU, % */
+  VID_ST_LIGHT_STAIRS          = 407,  /* States.IoboardU, % */
+  VID_ST_LIGHT_HALLWAY         = 408,  /* States.IoboardU, % */
+  VID_ST_LIGHT_LIVING_ROOM     = 409,  /* States.IoboardU, % */
+  VID_ST_LIGHT_DINING_ROOM     = 410,  /* States.IoboardU, % */
+  VID_ST_LIGHT_KITCHEN         = 411,  /* States.IoboardU, % */
+  VID_ST_SCREEN_EAST           = 412,  /* States.IoboardU */
+  VID_ST_SCREEN_WEST           = 413,  /* States.IoboardU */
 } eVarId;
 
 /* ---- enums ---- */
@@ -292,6 +307,14 @@ typedef enum
   ElHeaterState_BalanceSupport       = 10,
   ElHeaterState_ComfortHeat          = 11,
 } eElHeaterState;
+
+typedef enum
+{
+  BlindCmd_None = 0,
+  BlindCmd_Up   = 1,
+  BlindCmd_Down = 2,
+  BlindCmd_Stop = 3,
+} eBlindCmd;
 
 /* ---- group structs ({value, valid} fields, see VARS2_types.h) ---- */
 typedef struct
@@ -577,6 +600,29 @@ typedef struct
 
 typedef struct
 {
+  sVarU32 LoftWest_pct;     /* id 400, % */
+  sVarU32 LoftEast1_pct;    /* id 401, % */
+  sVarU32 LoftEast2_pct;    /* id 402, % */
+  sVarU32 BedroomSouth_pct; /* id 403, % */
+  sVarU32 BedroomNorth_pct; /* id 404, % */
+  sVarU32 Bathroom_pct;     /* id 405, % */
+  sVarU32 StairSteps_pct;   /* id 406, % */
+  sVarU32 Stairs_pct;       /* id 407, % */
+  sVarU32 Hallway_pct;      /* id 408, % */
+  sVarU32 LivingRoom_pct;   /* id 409, % */
+  sVarU32 DiningRoom_pct;   /* id 410, % */
+  sVarU32 Kitchen_pct;      /* id 411, % */
+  sVarI32 ScreenEast;       /* id 412, enum eBlindCmd */
+  sVarI32 ScreenWest;       /* id 413, enum eBlindCmd */
+} sVarsStatesIoboardU;
+
+typedef struct
+{
+  sVarsStatesIoboardU IoboardU;  /* IOBOARD_U */
+} sVarsStates;
+
+typedef struct
+{
   sVarsSystem       System;             /* ELECON */
   sVarsGlobalEnergy GlobalEnergy;       /* ELECON */
   sVarsPack         PackWorkshop251Ah;  /* ELECON_D */
@@ -596,6 +642,7 @@ typedef struct
   sVarsRecu         Recu;               /* RECU */
   sVarsTemperatures Temperatures;       /* producer per subgroup */
   sVarsMeteo        Meteo;              /* IOBOARD_U */
+  sVarsStates       States;             /* IOBOARD_U */
 } sVars;
 
 extern sVars Vars2;

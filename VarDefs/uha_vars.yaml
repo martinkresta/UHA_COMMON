@@ -12,12 +12,17 @@
 #                 sVars<struct>, their field lists must be identical
 #   validity      group (default): one validity for the whole group (VARS2_SetGroupValid())
 #                 per_field: each field has its own validity (written by id: TEMP, ELM, SENSIRION)
+#   send          periodic (default): sent every period_ms
+#                 on_change: sent when value or valid changes (min 1 s apart, VARS2_ON_CHANGE_MIN_MS) and
+#                 every period_ms as refresh (use 20000: auto timeout 3 x 20000 still fits u16).
+#                 On a variable or a group/subgroup (inherited like producer). Flag VMF_ON_CHANGE.
 #
 # Conventions (variables)
 #   name          VARS2 name, gives VID_<name> and the name in uha2.json (physical units, no scaling suffix)
 #   field         C field name in the group struct, CamelCase + unit suffix (_pct _V _A _W _Wh _Ah _C _l
 #                 _lpm _Pa _ppm _mps), no suffix for bool / enum / no unit
-#   legacy        old int16 variable name; not used by the firmware, kept for UhaGatePy (uha.json)
+#   legacy        old int16 variable name; not used by the firmware, kept for UhaGatePy (uha.json).
+#                 Optional: a variable without legacy is only in uha2.json (all States)
 #   legacy_scale  old raw int16 = physical value * legacy_scale (omitted when 1); uha.json only
 #   type          float (default) | int32 | uint32 | bool | enum
 #   period_ms     publish period of the producer (VARS2 sends it by this period)
@@ -26,6 +31,8 @@
 #   log_s         UhaGatePy only: log period into the RPi database in s (10 or 60); missing = not logged
 #   agg           UhaGatePy only: avg (default, mean over log_s) | delta (daily/total counter, the increment
 #                 per interval is stored; a drop below half = reset). On an array: every element
+#                 | event (one row per change into the `events` table, no log_s; for States)
+#   power_w       documentation only: electrical load of a light / output in W (not used yet)
 #   ELM rule      ELM.c writes power to (energy id + 10): CONS_x_WH id N -> POW_x_W id N+10 (validator checks it)
 
 version: 0
@@ -48,6 +55,7 @@ defaults:
 enums:
   ElHeaterState: {0: Heating, 1: TempReached, 2: NoFreePower, 3: LowSOC, 4: 48VFail, 5: TankOvertemperature,
                   6: BoardOvertemperature, 7: InvalidInputs, 8: EleconComError, 9: SwitchError, 10: BalanceSupport, 11: ComfortHeat}
+  BlindCmd: {0: None, 1: Up, 2: Down, 3: Stop}   # last command to a sunscreen / blind (position unknown)
 
 groups:
 
@@ -1645,3 +1653,135 @@ groups:
         unit: Wh
         period_ms: 5000
         receivers: [RPI]
+
+  States:   # event-based states, send: on_change (VARS2_spec.md); id ranges: IOBOARD_U 400-419,
+            # IOBOARD_D 420-439, TECHM 440-479, ELECON 480-489, ELECON_D 490-509, RECU 510-519
+    send: on_change
+    subgroups:
+      IoboardU:   # lights: PWM duty really set (PWROUT_GetPct), sunscreens: last command (WSCRC)
+        producer: IOBOARD_U
+        vars:
+          - id: 400   # OUT1 podkrovi zapad
+            name: ST_LIGHT_LOFT_WEST
+            field: LoftWest_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 401   # OUT2 podkrovi vychod 1
+            name: ST_LIGHT_LOFT_EAST_1
+            field: LoftEast1_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 402   # OUT3 podkrovi vychod 2
+            name: ST_LIGHT_LOFT_EAST_2
+            field: LoftEast2_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 403   # OUT4 loznice jih
+            name: ST_LIGHT_BEDROOM_SOUTH
+            field: BedroomSouth_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 404   # OUT5 loznice sever
+            name: ST_LIGHT_BEDROOM_NORTH
+            field: BedroomNorth_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 405   # OUT6 koupelna
+            name: ST_LIGHT_BATHROOM
+            field: Bathroom_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 406   # OUT7 podstupne
+            name: ST_LIGHT_STAIR_STEPS
+            field: StairSteps_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 407   # OUT8 schody
+            name: ST_LIGHT_STAIRS
+            field: Stairs_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 408   # OUT9 chodba + predsin
+            name: ST_LIGHT_HALLWAY
+            field: Hallway_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 409   # OUT10 obyvak
+            name: ST_LIGHT_LIVING_ROOM
+            field: LivingRoom_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 410   # OUT11 jidelna
+            name: ST_LIGHT_DINING_ROOM
+            field: DiningRoom_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 411   # OUT12 kuchyn
+            name: ST_LIGHT_KITCHEN
+            field: Kitchen_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 412   # SCRID_EAST, WSCRC_ManualControl()
+            name: ST_SCREEN_EAST
+            field: ScreenEast
+            type: enum
+            enum: BlindCmd
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 413   # SCRID_WEST, WSCRC_ManualControl()
+            name: ST_SCREEN_WEST
+            field: ScreenWest
+            type: enum
+            enum: BlindCmd
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]

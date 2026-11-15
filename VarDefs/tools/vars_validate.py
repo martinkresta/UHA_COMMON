@@ -37,7 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from vars_model import (FIELD_SUFFIX, TYPES, UNIT_NAME_TOKEN, UNIT_TOKENS, VALIDITY,  # noqa: E402
+from vars_model import (FIELD_SUFFIX, SEND_MODES, TYPES, UNIT_NAME_TOKEN, UNIT_TOKENS, VALIDITY,  # noqa: E402
                         Group, Model, VarDef, VarsYamlError, legacy_range, load_model)
 
 VARDEFS_DIR = Path(__file__).resolve().parent.parent
@@ -45,10 +45,13 @@ DEFAULT_MCAN_H = VARDEFS_DIR.parent / "Inc" / "MCAN.h"
 RE_NODEID = re.compile(r"#define\s+NODEID_(\w+)\s+(\d+)")
 
 KNOWN_TOP_KEYS = {"version", "nodes", "defaults", "enums", "groups"}
-KNOWN_GROUP_KEYS = {"producer", "vars", "subgroups", "struct", "validity"}
+KNOWN_GROUP_KEYS = {"producer", "vars", "subgroups", "struct", "validity", "send"}
 KNOWN_VAR_KEYS = {"id", "name", "field", "legacy", "type", "enum", "unit", "legacy_scale",
                   "period_ms", "timeout_ms", "on_can", "count", "receivers", "desc",
-                  "log_s", "agg"}  # log_s / agg: UhaGatePy DB logging only, not used by the FW
+                  "log_s", "agg",   # log_s / agg: UhaGatePy DB logging only, not used by the FW
+                  "send",           # periodic | on_change (VMF_ON_CHANGE), also on groups
+                  "power_w"}        # documentation only (load of a light / output), not used yet
+AGG_MODES = ("avg", "delta", "event")
 KNOWN_DEFAULT_KEYS = (KNOWN_VAR_KEYS - {"id", "name", "field"}) | {"producer"}
 RECEIVE_ONLY_NODES = {"RPI"}
 MAX_ID = 0xFFFE
@@ -288,6 +291,8 @@ def _rule_schema(c: _Ctx):
                 c.ge(g, "struct", "'struct' is allowed on top-level groups only")
             elif not isinstance(g.struct, str) or not RE_C_IDENT.match(g.struct):
                 c.ge(g, "struct", f"'struct' must be a C identifier, got {g.struct!r}")
+        if "send" in gd and gd["send"] not in SEND_MODES:
+            c.ge(g, "send", f"invalid send {gd['send']!r} (allowed: {', '.join(SEND_MODES)})")
         if "validity" in gd and g.validity not in VALIDITY:
             c.ge(g, "validity", f"invalid validity {g.validity!r} (allowed: {', '.join(VALIDITY)})")
         if g.parent is not None and g.producer_raw is not None and g.parent.producer_raw is not None:
@@ -330,8 +335,17 @@ def _rule_schema(c: _Ctx):
             c.ve(d, "unit", f"'unit' must be a string, got {d.unit!r}")
         if "log_s" in d.raw and d.raw["log_s"] not in (10, 60):
             c.ve(d, "log_s", f"'log_s' must be 10 or 60, got {d.raw['log_s']!r}")
-        if "agg" in d.raw and d.raw["agg"] not in ("avg", "delta"):
-            c.ve(d, "agg", f"'agg' must be avg or delta, got {d.raw['agg']!r}")
+        agg = d.raw.get("agg")
+        if "agg" in d.raw and agg not in AGG_MODES:
+            c.ve(d, "agg", f"'agg' must be one of {', '.join(AGG_MODES)}, got {agg!r}")
+        elif agg == "event" and "log_s" in d.raw:
+            c.ve(d, "log_s", "'agg: event' logs one row per change, it must not have 'log_s'")
+        elif agg in ("avg", "delta") and "log_s" not in d.raw:
+            c.ve(d, "agg", f"'agg: {agg}' needs 'log_s'")
+        if "send" in d.raw and d.raw["send"] not in SEND_MODES:
+            c.ve(d, "send", f"invalid send {d.raw['send']!r} (allowed: {', '.join(SEND_MODES)})")
+        if "power_w" in d.raw and not (_is_num(d.raw["power_w"]) and d.raw["power_w"] >= 0):
+            c.ve(d, "power_w", f"'power_w' must be a number >= 0, got {d.raw['power_w']!r}")
         rv = d.raw.get("receivers", c.m.defaults.get("receivers"))
         if rv is not None and not isinstance(rv, list):
             c.ve(d, "receivers", "'receivers' must be a list")

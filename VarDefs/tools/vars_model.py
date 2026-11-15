@@ -62,6 +62,7 @@ FIELD_SUFFIX = {
 }
 
 TYPES = ("float", "int32", "uint32", "bool", "enum")
+SEND_MODES = ("periodic", "on_change")   # `send`: periodic (default) | on_change (VMF_ON_CHANGE)
 VALIDITY = ("group", "per_field")
 
 _LEGACY_RANGE = re.compile(r"\{(\d+)\.\.(\d+)\}")
@@ -125,6 +126,7 @@ class VarDef:
     count: Any                   # as written (None if not an array)
     receivers: List[Any]
     desc: Any
+    send: Any = "periodic"       # resolved: var, else subgroup, else container, else defaults, else periodic
 
     @property
     def is_array(self) -> bool:
@@ -172,6 +174,8 @@ class Value:
     @property
     def receivers(self): return self.base.receivers
     @property
+    def send(self): return self.base.send
+    @property
     def line(self): return self.base.line
 
 
@@ -187,6 +191,7 @@ class Group:
     producer: Any                # resolved: own, else container's, else defaults
     struct: Any                  # as written (top-level groups only)
     validity: Any                # resolved: own, else 'group'
+    send: Any                    # resolved: own, else container's, else defaults, else 'periodic'
     c_struct: str                # 'sVarsGlobalEnergyBattery', 'sVarsPack', 'sVarsLocalEnergyStorage'
     vars: List[VarDef] = field(default_factory=list)
     subgroups: List["Group"] = field(default_factory=list)
@@ -296,6 +301,7 @@ def _load_vars(grp: Group, gdict: Dict[str, Any], defaults: Dict[str, Any]):
         else:
             tout = tout_raw if _is_int(tout_raw) else None
         recv = merged.get("receivers")
+        send = r.get("send", grp.send)
         grp.vars.append(VarDef(
             group=grp.path, grp=grp, raw=r, line=vd.get(LINE_KEY),
             id=merged.get("id"), name=merged.get("name"), field=r.get("field"),
@@ -306,7 +312,7 @@ def _load_vars(grp: Group, gdict: Dict[str, Any], defaults: Dict[str, Any]):
             period_ms=period, timeout_ms=tout, timeout_raw=tout_raw,
             on_can=merged.get("on_can", True), count=merged.get("count"),
             receivers=list(recv) if isinstance(recv, list) else ([] if recv is None else [recv]),
-            desc=merged.get("desc"),
+            desc=merged.get("desc"), send=send,
         ))
 
 
@@ -320,6 +326,12 @@ def _make_group(key, gdict, ypath, parent, defaults) -> Group:
     else:
         producer = defaults.get("producer")
     validity = raw.get("validity", "group")
+    if "send" in raw:
+        send = raw["send"]
+    elif parent is not None:
+        send = parent.send
+    else:
+        send = defaults.get("send", "periodic")
     if parent is None:
         c_struct = "sVars" + str(raw.get("struct") or key)
     else:
@@ -327,7 +339,7 @@ def _make_group(key, gdict, ypath, parent, defaults) -> Group:
     return Group(key=key, path=key if parent is None else f"{parent.key}.{key}", ypath=ypath,
                  line=gdict.get(LINE_KEY) if isinstance(gdict, dict) else None, raw=raw,
                  parent=parent, producer_raw=own_prod, producer=producer,
-                 struct=raw.get("struct"), validity=validity, c_struct=c_struct)
+                 struct=raw.get("struct"), validity=validity, send=send, c_struct=c_struct)
 
 
 def load_model(path: str) -> Model:
@@ -393,4 +405,4 @@ if __name__ == "__main__":
         for d in g.vars:
             arr = f"[{d.n}]" if d.is_array else ""
             print(f"  {d.id!s:>4} {d.name:<28} -> {d.c_field}{arr}  {d.type} "
-                  f"per={d.period_ms} to={d.timeout_ms} can={d.on_can}")
+                  f"per={d.period_ms} to={d.timeout_ms} can={d.on_can} send={d.send}")

@@ -29,7 +29,7 @@ VARS2_SetById(VID_TEMP_OUTSIDE_C, t, 1);  // by id (TEMP, ELM, SENSIRION)
 if (pBat->Soc_pct.valid) { ... pBat->Soc_pct.value ... }
 ```
 
-VARS2 sends every own variable by its YAML `period_ms` (no stream lists) and clears `.valid` of received
+VARS2 sends every own variable by its YAML `period_ms` (no stream lists; `send: on_change` variables also on change, min 1 s apart) and clears `.valid` of received
 variables after `timeout_ms`. Ids (`VID_*`) and names are fixed (wire format, UhaGatePy, PC tool).
 
 **Id ranges** (unchanged):
@@ -50,6 +50,7 @@ variables after `timeout_ms`. Ids (`VID_*`) and names are fixed (wire format, Uh
 | 260–295 | Axpert inverter, workshop meters |
 | 300–337 | Home / workshop energy (storage, load, PV) |
 | 350–381 | House pack 80 Ah cells |
+| 400–519 | States (`send: on_change`): IOBOARD_U 400–419, IOBOARD_D 420–439, TECHM 440–479, ELECON 480–489, ELECON_D 490–509, RECU 510–519 |
 
 ---
 
