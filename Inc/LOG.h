@@ -36,5 +36,7 @@ typedef enum
 
 void LOG_Startup(void);
 void LOG_SaveToBackup(uint8_t reg, uint32_t val);
+// node log message 0x620 (event + 6 data bytes); the master node (ELECON) sends it over SCOM, the others on CAN
+void LOG_SendEvent(eLogEvent event, const uint8_t payload[6]);
 
 #endif

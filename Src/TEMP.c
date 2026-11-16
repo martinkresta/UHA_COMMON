@@ -12,6 +12,9 @@
 #include "main.h"
 #include "VARS2.h"
 #include "UI.h"
+#include "LOG.h"
+#include <stdlib.h>
+#include <string.h>
 
 
 /* Private variables */
@@ -21,6 +24,11 @@ uint16_t mTimer;
 uint8_t mReadId;
 uint8_t mConvertId;
 uint8_t mNumOfBuses;
+
+static int8_t mPendingIdx = -1;     // sensor whose readout was started in the last call (scratchpad not checked yet)
+static uint16_t mIgnored85;         // ignored 85.0 degC readouts since start
+static uint32_t mLast85LogTick;
+static uint8_t mLogged85Once;
 
 
 // temp sensors ROM codes (see TempSensIDs.xlsx)
@@ -75,6 +83,59 @@ uint8_t mSensorsAddress[NUM_OF_ALL_SENSORS][8] =   // LSB on the left, transmit 
 
 /* Private methods */
 
+/* The readout of sensor idx has finished: remember whether it was the 85.0 degC power-on value, log it (rate-limited).
+ * Only looks at the received bytes, the value itself is taken over in TEMP_Update100ms() as before. */
+static void CheckPowerOnValue(uint8_t idx)
+{
+	const uint8_t* sp = OW_GetScratchpad();
+	sTemp* s = &mSensors[idx];
+	uint8_t payload[6];
+	uint32_t now;
+	uint16_t minutes;
+
+	s->por85 = (s->status == ets_Valid && sp[0] == 0x50 && sp[1] == 0x05) ? 1u : 0u;
+	if (!s->por85)
+	{
+		return;
+	}
+	now = HAL_GetTick();
+	if (mLogged85Once && (now - mLast85LogTick) < TEMP_85_LOG_MIN_MS)
+	{
+		return;
+	}
+	mLogged85Once = 1;
+	mLast85LogTick = now;
+	minutes = (uint16_t)(now / 60000u);
+	payload[0] = TEMP_LOG_85_A;
+	payload[1] = s->sensorId;
+	payload[2] = (uint8_t)(mIgnored85 & 0xFF);
+	payload[3] = (uint8_t)(mIgnored85 >> 8);
+	payload[4] = (uint8_t)(minutes & 0xFF);
+	payload[5] = (uint8_t)(minutes >> 8);
+	LOG_SendEvent(eleLog, payload);
+	payload[0] = TEMP_LOG_85_B;
+	payload[1] = s->sensorId;
+	payload[2] = sp[2];
+	payload[3] = sp[4];
+	payload[4] = sp[6];
+	payload[5] = sp[7];
+	LOG_SendEvent(eleLog, payload);
+}
+
+/* 85.0 degC power-on value: take it only if it is plausible (see TEMP.h) */
+static uint8_t Accept85(sTemp* s)
+{
+	if (s->cnt85 < 255u)
+	{
+		s->cnt85++;
+	}
+	if (s->cnt85 >= TEMP_85_ACCEPT_REPEAT)
+	{
+		return 1;
+	}
+	return (s->tempC_10ths != (int16_t)0x8000) && (abs(s->tempC_10ths - TEMP_85_RAW_10THS) <= TEMP_85_ACCEPT_BAND);
+}
+
 /* Public methods */
 
 void TEMP_Init(void)
@@ -90,6 +151,14 @@ void TEMP_Update100ms(void)
 {
 	// cyclically read all assigned sensors and trig the conversion
 
+	// the readout started in the last call has finished (it takes ~10 ms): check its scratchpad before the next
+	// transfer overwrites it
+	if (mPendingIdx >= 0 && !OW_IsBusy())
+	{
+		CheckPowerOnValue((uint8_t)mPendingIdx);
+		mPendingIdx = -1;
+	}
+
 	if (mTimer == 0)
 	{
 		// copy results to Vars2 (by id, temperature in degC)
@@ -98,7 +167,23 @@ void TEMP_Update100ms(void)
 		{
 			mSensors[i].errorCnt++;  // just assume error to simplify the code :-)
 			// check the validity of last readout
-			if ((mSensors[i].rawTempC_10ths >= -300) && (mSensors[i].rawTempC_10ths <= 1250) && mSensors[i].status == ets_Valid)  // valid range from -30 to 125 deg C
+			uint8_t ok = (mSensors[i].rawTempC_10ths >= -300) && (mSensors[i].rawTempC_10ths <= 1250) && mSensors[i].status == ets_Valid;  // valid range from -30 to 125 deg C
+			if (ok && mSensors[i].por85)    // 85.0 degC power-on value: only if plausible, else keep the last value
+			{
+				if (!Accept85(&mSensors[i]))
+				{
+					ok = 0;
+					if (mIgnored85 < 0xFFFFu)
+					{
+						mIgnored85++;
+					}
+				}
+			}
+			else if (ok)
+			{
+				mSensors[i].cnt85 = 0;
+			}
+			if (ok)
 			{
 				mSensors[i].errorCnt = 0;
 				mSensors[i].tempC_10ths = mSensors[i].rawTempC_10ths;  // copy the raw value to valid value
@@ -126,10 +211,13 @@ void TEMP_Update100ms(void)
 	if (mTimer > 20)  // 2 sec delay
 	{
 
-		OW_ReadSensor(mSensors[mReadId].owBusId,
+		if (OW_ReadSensor(mSensors[mReadId].owBusId,
 									&(mSensorsAddress[mSensors[mReadId].sensorId]),
 									&(mSensors[mReadId].rawTempC_10ths),
-									&(mSensors[mReadId].status));
+									&(mSensors[mReadId].status)) == etr_OK)
+		{
+			mPendingIdx = (int8_t)mReadId;
+		}
 		mReadId++;
 
 	}
@@ -170,6 +258,8 @@ uint8_t TEMP_AssignSensor(uint8_t sensorId, eVarId varId, uint8_t busId)
 		mSensors[mNumOfAssignedSensors].VarId = varId;
 		mSensors[mNumOfAssignedSensors].owBusId = busId;
 		mSensors[mNumOfAssignedSensors].errorCnt = 0;
+		mSensors[mNumOfAssignedSensors].por85 = 0;
+		mSensors[mNumOfAssignedSensors].cnt85 = 0;
 		mNumOfAssignedSensors++;
 		return 0;
 	}
@@ -179,3 +269,7 @@ uint8_t TEMP_AssignSensor(uint8_t sensorId, eVarId varId, uint8_t busId)
 	}
 }
 
+uint16_t TEMP_GetIgnored85Count(void)
+{
+	return mIgnored85;
+}

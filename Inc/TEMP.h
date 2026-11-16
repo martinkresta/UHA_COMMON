@@ -17,6 +17,17 @@
 
 #define MAX_ERR_TO_INVALIDATE		5  // max number of consecutive err readouts to set value as invalid
 
+/* DS18B20 power-on value: scratchpad 0x0550 = exactly 85.0 degC, read with a valid CRC when the sensor has not
+ * finished a conversion since its last reset. Such a readout is ignored (the last value stays) unless it is
+ * plausible: the last valid value is within TEMP_85_ACCEPT_BAND, or it came TEMP_85_ACCEPT_REPEAT times in a row
+ * (a real, steady 85.0 degC, e.g. TECHM tank). Every ignored readout is counted and logged (0x620, eleLog). */
+#define TEMP_85_RAW_10THS       850   // 0x0550 * 10 / 16
+#define TEMP_85_ACCEPT_BAND     50    // 10ths of degC: last valid value 80.0 .. 90.0 -> accept
+#define TEMP_85_ACCEPT_REPEAT   3     // consecutive 85.0 readouts -> accept
+#define TEMP_85_LOG_MIN_MS      60000 // at most one log pair per minute
+#define TEMP_LOG_85_A           0x21  // log payload[0]: sensorId, total count (LE16), uptime in minutes (LE16)
+#define TEMP_LOG_85_B           0x22  // log payload[0]: sensorId, scratchpad bytes 2 (TH), 4 (config), 6, 7
+
 
 
 // temp sensors aliases (see TempSensIDs.xlsx)
@@ -83,7 +94,12 @@ typedef struct
 	eVarId VarId;          /* VID_* of the temperature (one of this node's variables) */
 	uint8_t owBusId;
 	uint8_t errorCnt;
+	uint8_t por85;         /* last readout was the 85.0 degC power-on value (scratchpad 0x50 0x05) */
+	uint8_t cnt85;         /* consecutive 85.0 degC readouts */
 }sTemp;
+
+/* number of ignored 85.0 degC readouts since start (all sensors of this node) */
+uint16_t TEMP_GetIgnored85Count(void);
 
 void TEMP_Init(void);
 void TEMP_Update100ms(void);
