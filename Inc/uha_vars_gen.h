@@ -9,10 +9,10 @@
 #include <stdint.h>
 #include "VARS2_types.h"
 
-#define VARS_COUNT         272
-#define VAR_MAX_ID         413
-#define VARS_ON_CAN_COUNT  159
-#define VARS_ON_CHANGE_COUNT 14
+#define VARS_COUNT         291
+#define VAR_MAX_ID         511
+#define VARS_ON_CAN_COUNT  178
+#define VARS_ON_CHANGE_COUNT 33
 
 /* ---- variable ids ---- */
 typedef enum
@@ -289,6 +289,25 @@ typedef enum
   VID_ST_LIGHT_KITCHEN         = 411,  /* States.IoboardU, % */
   VID_ST_SCREEN_EAST           = 412,  /* States.IoboardU */
   VID_ST_SCREEN_WEST           = 413,  /* States.IoboardU */
+  VID_ST_LIGHT_WASHBASIN       = 420,  /* States.IoboardD, % */
+  VID_ST_LIGHT_KITCHEN_COUNTER = 421,  /* States.IoboardD, % */
+  VID_ST_SEWAGE_PUMP           = 422,  /* States.IoboardD */
+  VID_ST_AC_300W               = 480,  /* States.Elecon */
+  VID_ST_AC_3KW                = 481,  /* States.Elecon */
+  VID_ST_AC_5KW                = 482,  /* States.Elecon */
+  VID_ST_LIGHT_EXTERIOR_HOUSE  = 483,  /* States.Elecon, % */
+  VID_ST_AC_AXPERT             = 490,  /* States.EleconD */
+  VID_ST_AC_VICTRON            = 491,  /* States.EleconD */
+  VID_ST_AKUPACK_HEATER        = 492,  /* States.EleconD */
+  VID_ST_AKUPACK_SET_DAY_C     = 493,  /* States.EleconD, degC */
+  VID_ST_AKUPACK_SET_NIGHT_C   = 494,  /* States.EleconD, degC */
+  VID_ST_EVSE_RELAY            = 495,  /* States.EleconD */
+  VID_ST_WS_HEATING_RELAY      = 496,  /* States.EleconD */
+  VID_ST_LIGHT_EXTERIOR_WS     = 497,  /* States.EleconD, % */
+  VID_ST_LIGHT_KOLARNA         = 498,  /* States.EleconD, % */
+  VID_ST_LIGHT_SKLEP           = 499,  /* States.EleconD, % */
+  VID_ST_RECU_REMOTE_MODE      = 510,  /* States.Recu */
+  VID_ST_RECU_LIMIT            = 511,  /* States.Recu */
 } eVarId;
 
 /* ---- enums ---- */
@@ -315,6 +334,35 @@ typedef enum
   BlindCmd_Down = 2,
   BlindCmd_Stop = 3,
 } eBlindCmd;
+
+typedef enum
+{
+  RecuRemoteMode_Auto                = 0,
+  RecuRemoteMode_SlightOverpressure  = 1,
+  RecuRemoteMode_MaxOverpressure     = 2,
+  RecuRemoteMode_SlightUnderpressure = 3,
+  RecuRemoteMode_MaxUnderpressure    = 4,
+} eRecuRemoteMode;
+
+typedef enum
+{
+  RecuLimit_None              = 0,
+  RecuLimit_Eco               = 1,
+  RecuLimit_AntiDry           = 2,
+  RecuLimit_AntifreezeReduced = 3,
+  RecuLimit_AntifreezeStop    = 4,
+  RecuLimit_BatteryOff        = 5,
+  RecuLimit_InvalidInputs     = 6,
+} eRecuLimit;
+
+typedef enum
+{
+  InverterState_Off           = 0,
+  InverterState_On            = 1,
+  InverterState_OnKeepSetting = 2,
+  InverterState_KeepOn        = 3,
+  InverterState_AutoOff       = 4,
+} eInverterState;
 
 /* ---- group structs ({value, valid} fields, see VARS2_types.h) ---- */
 typedef struct
@@ -618,7 +666,46 @@ typedef struct
 
 typedef struct
 {
+  sVarU32 Washbasin_pct;      /* id 420, % */
+  sVarU32 KitchenCounter_pct; /* id 421, % */
+  sVarI32 SewagePump;         /* id 422, bool */
+} sVarsStatesIoboardD;
+
+typedef struct
+{
+  sVarI32 AcAxpert;          /* id 490, enum eInverterState */
+  sVarI32 AcVictron;         /* id 491, enum eInverterState */
+  sVarI32 AkupackHeater;     /* id 492, bool */
+  sVarF32 AkupackSetDay_C;   /* id 493, degC */
+  sVarF32 AkupackSetNight_C; /* id 494, degC */
+  sVarI32 EvseRelay;         /* id 495, bool */
+  sVarI32 HeatingRelay;      /* id 496, bool */
+  sVarU32 ExteriorLight_pct; /* id 497, % */
+  sVarU32 Kolarna_pct;       /* id 498, % */
+  sVarU32 Sklep_pct;         /* id 499, % */
+} sVarsStatesEleconD;
+
+typedef struct
+{
+  sVarI32 Ac300W;            /* id 480, enum eInverterState */
+  sVarI32 Ac3kW;             /* id 481, enum eInverterState */
+  sVarI32 Ac5kW;             /* id 482, enum eInverterState */
+  sVarU32 ExteriorLight_pct; /* id 483, % */
+} sVarsStatesElecon;
+
+typedef struct
+{
+  sVarI32 RemoteMode; /* id 510, enum eRecuRemoteMode */
+  sVarI32 Limit;      /* id 511, enum eRecuLimit */
+} sVarsStatesRecu;
+
+typedef struct
+{
   sVarsStatesIoboardU IoboardU;  /* IOBOARD_U */
+  sVarsStatesIoboardD IoboardD;  /* IOBOARD_D */
+  sVarsStatesEleconD  EleconD;   /* ELECON_D */
+  sVarsStatesElecon   Elecon;    /* ELECON */
+  sVarsStatesRecu     Recu;      /* RECU */
 } sVarsStates;
 
 typedef struct
@@ -642,7 +729,7 @@ typedef struct
   sVarsRecu         Recu;               /* RECU */
   sVarsTemperatures Temperatures;       /* producer per subgroup */
   sVarsMeteo        Meteo;              /* IOBOARD_U */
-  sVarsStates       States;             /* IOBOARD_U */
+  sVarsStates       States;             /* producer per subgroup */
 } sVars;
 
 extern sVars Vars2;

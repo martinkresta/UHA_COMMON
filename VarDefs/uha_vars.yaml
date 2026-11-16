@@ -56,6 +56,12 @@ enums:
   ElHeaterState: {0: Heating, 1: TempReached, 2: NoFreePower, 3: LowSOC, 4: 48VFail, 5: TankOvertemperature,
                   6: BoardOvertemperature, 7: InvalidInputs, 8: EleconComError, 9: SwitchError, 10: BalanceSupport, 11: ComfortHeat}
   BlindCmd: {0: None, 1: Up, 2: Down, 3: Stop}   # last command to a sunscreen / blind (position unknown)
+  RecuRemoteMode: {0: Auto, 1: SlightOverpressure, 2: MaxOverpressure, 3: SlightUnderpressure, 4: MaxUnderpressure}   # = eRecuRemoteReqMode (COM.h)
+  RecuLimit: {0: None, 1: Eco, 2: AntiDry, 3: AntifreezeReduced, 4: AntifreezeStop, 5: BatteryOff, 6: InvalidInputs}
+    # RECON.c, higher = higher priority: Eco = SOC < 85 % lowers the fan limit, AntiDry = mAntiDryOn (waste RH <= 50 %),
+    # AntifreezeReduced = waste cold 4..8 degC (fresh fan reduced), AntifreezeStop = waste cold < 4 degC (fresh fan off),
+    # BatteryOff = SOC < 30 % (fans 0 / 10 %), InvalidInputs = a needed input invalid (fans 0 / 10 %)
+  InverterState: {0: 'Off', 1: 'On', 2: OnKeepSetting, 3: KeepOn, 4: AutoOff}   # = eACState in AC.h (ELECON, ELECON_D); own name, the generated eInverterState must not clash
 
 groups:
 
@@ -1782,6 +1788,170 @@ groups:
             field: ScreenWest
             type: enum
             enum: BlindCmd
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+      IoboardD:   # lights: PWM duty really set (PWROUT_GetPct), sewage pump: SEWAGE_PUMP_OUTPUT (OUT1) on
+        producer: IOBOARD_D
+        vars:
+          - id: 420   # OUT5 umyvadlo
+            name: ST_LIGHT_WASHBASIN
+            field: Washbasin_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 421   # OUT6 kuch linka
+            name: ST_LIGHT_KITCHEN_COUNTER
+            field: KitchenCounter_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 422   # OUT1, APP_Update_1s() schedule
+            name: ST_SEWAGE_PUMP
+            field: SewagePump
+            type: bool
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+      EleconD:   # AC: AC_GetState(), relays / outputs as really set, lights 0/100 % (relay) or PWM %
+        producer: ELECON_D
+        vars:
+          - id: 490   # REL1 Axpert 8 kW, AC.c state machine
+            name: ST_AC_AXPERT
+            field: AcAxpert
+            type: enum
+            enum: InverterState
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 491   # REL3 Victron 2 kW, AC.c state machine
+            name: ST_AC_VICTRON
+            field: AcVictron
+            type: enum
+            enum: InverterState
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 492   # REL2 akupack heater (AkupackHeatingControl)
+            name: ST_AKUPACK_HEATER
+            field: AkupackHeater
+            type: bool
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 493   # akupack heater setpoint 5-18 h (mAkupackSetDay_C)
+            name: ST_AKUPACK_SET_DAY_C
+            field: AkupackSetDay_C
+            type: float
+            unit: '°C'
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 494   # akupack heater setpoint night (mAkupackSetNight_C)
+            name: ST_AKUPACK_SET_NIGHT_C
+            field: AkupackSetNight_C
+            type: float
+            unit: '°C'
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 495   # OUT1 EVSE relay (LEMON load control)
+            name: ST_EVSE_RELAY
+            field: EvseRelay
+            type: bool
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 496   # OUT4 OUT_HEATING_RELAY (LEMON load control)
+            name: ST_WS_HEATING_RELAY
+            field: HeatingRelay
+            type: bool
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 497   # OUT2 PWM svetlo puda (ExtLightControl)
+            name: ST_LIGHT_EXTERIOR_WS
+            field: ExteriorLight_pct
+            type: uint32
+            unit: '%'
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 498   # DO1 relay, lightctrl (auto off 90 min)
+            name: ST_LIGHT_KOLARNA
+            field: Kolarna_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 499   # DO2 relay, lightctrl (auto off 15 min)
+            name: ST_LIGHT_SKLEP
+            field: Sklep_pct
+            type: uint32
+            unit: '%'
+            power_w: 12
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+      Elecon:   # AC: AC_GetState(), exterior light: PWROUT_GetPct(OUT1)
+        producer: ELECON
+        vars:
+          - id: 480   # DCAC 300 W, AC.c state machine
+            name: ST_AC_300W
+            field: Ac300W
+            type: enum
+            enum: InverterState
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 481   # DCAC 3 kW, AC.c state machine
+            name: ST_AC_3KW
+            field: Ac3kW
+            type: enum
+            enum: InverterState
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 482   # DCAC 5 kW, AC.c state machine
+            name: ST_AC_5KW
+            field: Ac5kW
+            type: enum
+            enum: InverterState
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 483   # OUT1 + OUT4 (ExtLightControl, only 0 / 100)
+            name: ST_LIGHT_EXTERIOR_HOUSE
+            field: ExteriorLight_pct
+            type: uint32
+            unit: '%'
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+      Recu:   # RECON.c: remote request mode + highest-priority fan limitation of the last RECON_Update_1s()
+        producer: RECU
+        vars:
+          - id: 510   # mRemoteMode (eRecuRemoteReqMode in COM.h)
+            name: ST_RECU_REMOTE_MODE
+            field: RemoteMode
+            type: enum
+            enum: RecuRemoteMode
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 511   # see enum RecuLimit: set where each RECON branch is taken, the highest number wins
+            name: ST_RECU_LIMIT
+            field: Limit
+            type: enum
+            enum: RecuLimit
             period_ms: 20000
             agg: event
             receivers: [RPI]
