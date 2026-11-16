@@ -70,7 +70,7 @@ const sVarMeta VarMeta[VARS_COUNT] =
   { &Vars2.Meters.IoboardD.TechmPower_W,          77,  1000,  3000,  VT_FLOAT,  NODEID_IOBOARD_D, VMF_ON_CAN },
   { &Vars2.Meters.IoboardD.KitchenAPower_W,       78,  5000,  15000, VT_FLOAT,  NODEID_IOBOARD_D, 0 },
   { &Vars2.Meters.IoboardD.KitchenBPower_W,       79,  5000,  15000, VT_FLOAT,  NODEID_IOBOARD_D, 0 },
-  { &Vars2.ElHeater.State,                        80,  3000,  9000,  VT_ENUM,   NODEID_TECHM,     VMF_ON_CAN },
+  { &Vars2.ElHeater.State,                        80,  20000, 60000, VT_ENUM,   NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
   { &Vars2.ElHeater.Load_A,                       81,  3000,  9000,  VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN },
   { &Vars2.ElHeater.Current_A,                    82,  3000,  9000,  VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN },
   { &Vars2.ElHeater.ConsToday_Wh,                 83,  3000,  9000,  VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN },
@@ -286,6 +286,25 @@ const sVarMeta VarMeta[VARS_COUNT] =
   { &Vars2.States.IoboardD.Washbasin_pct,         420, 20000, 60000, VT_UINT32, NODEID_IOBOARD_D, VMF_ON_CAN | VMF_ON_CHANGE },
   { &Vars2.States.IoboardD.KitchenCounter_pct,    421, 20000, 60000, VT_UINT32, NODEID_IOBOARD_D, VMF_ON_CAN | VMF_ON_CHANGE },
   { &Vars2.States.IoboardD.SewagePump,            422, 20000, 60000, VT_BOOL,   NODEID_IOBOARD_D, VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.UpReqTempDay_C,           440, 20000, 60000, VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.UpReqTempNight_C,         441, 20000, 60000, VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.DownReqTempDay_C,         442, 20000, 60000, VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.DownReqTempNight_C,       443, 20000, 60000, VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.ExhaustSetpoint_C,        444, 20000, 60000, VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.UpReqTemp_C,              445, 20000, 60000, VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.DownReqTemp_C,            446, 20000, 60000, VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.RadOn,                    447, 20000, 60000, VT_BOOL,   NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.WallOn,                   448, 20000, 60000, VT_BOOL,   NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.PumpBoiler,               449, 20000, 60000, VT_BOOL,   NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.PumpWall,                 450, 20000, 60000, VT_BOOL,   NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.PumpRad,                  451, 20000, 60000, VT_BOOL,   NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.ElHeaterCoils,            452, 20000, 60000, VT_UINT32, NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.BoilerState,              453, 20000, 60000, VT_ENUM,   NODEID_TECHM,     VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Techm.ValveWall_pct,            460, 5000,  15000, VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN },
+  { &Vars2.States.Techm.ValveRad_pct,             461, 5000,  15000, VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN },
+  { &Vars2.States.Techm.AirValveSignal_pct,       462, 5000,  15000, VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN },
+  { &Vars2.States.Techm.ReqWaterRad_C,            463, 5000,  15000, VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN },
+  { &Vars2.States.Techm.ReqWaterWall_C,           464, 5000,  15000, VT_FLOAT,  NODEID_TECHM,     VMF_ON_CAN },
   { &Vars2.States.Elecon.Ac300W,                  480, 20000, 60000, VT_ENUM,   NODEID_ELECON,    VMF_ON_CAN | VMF_ON_CHANGE },
   { &Vars2.States.Elecon.Ac3kW,                   481, 20000, 60000, VT_ENUM,   NODEID_ELECON,    VMF_ON_CAN | VMF_ON_CHANGE },
   { &Vars2.States.Elecon.Ac5kW,                   482, 20000, 60000, VT_ENUM,   NODEID_ELECON,    VMF_ON_CAN | VMF_ON_CHANGE },
@@ -341,8 +360,9 @@ typedef char VARS2_SIZE_sVarsStatesIoboardD[(sizeof(sVarsStatesIoboardD)       =
 typedef char VARS2_SIZE_sVarsStatesEleconD[(sizeof(sVarsStatesEleconD)        ==  10u * VAR_ITEM_SIZE) ? 1 : -1];
 typedef char VARS2_SIZE_sVarsStatesElecon[(sizeof(sVarsStatesElecon)         ==   4u * VAR_ITEM_SIZE) ? 1 : -1];
 typedef char VARS2_SIZE_sVarsStatesRecu[(sizeof(sVarsStatesRecu)           ==   2u * VAR_ITEM_SIZE) ? 1 : -1];
-typedef char VARS2_SIZE_sVarsStates[(sizeof(sVarsStates)               ==  33u * VAR_ITEM_SIZE) ? 1 : -1];
-typedef char VARS2_SIZE_sVars[(sizeof(sVars) == 291u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVarsStatesTechm[(sizeof(sVarsStatesTechm)          ==  19u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVarsStates[(sizeof(sVarsStates)               ==  52u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVars[(sizeof(sVars) == 310u * VAR_ITEM_SIZE) ? 1 : -1];
 
 const uint16_t VarIdToIndex[VAR_MAX_ID + 1] =
 {
@@ -390,12 +410,12 @@ const uint16_t VarIdToIndex[VAR_MAX_ID + 1] =
   /* 410 */             268,             269,             270,             271, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
   /* 420 */             272,             273,             274, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
   /* 430 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
-  /* 440 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
-  /* 450 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
-  /* 460 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 440 */             275,             276,             277,             278,             279,             280,             281,             282,             283,             284,
+  /* 450 */             285,             286,             287,             288, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 460 */             289,             290,             291,             292,             293, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
   /* 470 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
-  /* 480 */             275,             276,             277,             278, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
-  /* 490 */             279,             280,             281,             282,             283,             284,             285,             286,             287,             288,
+  /* 480 */             294,             295,             296,             297, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
+  /* 490 */             298,             299,             300,             301,             302,             303,             304,             305,             306,             307,
   /* 500 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
-  /* 510 */             289,             290
+  /* 510 */             308,             309
 };
