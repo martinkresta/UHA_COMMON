@@ -56,6 +56,7 @@ enums:
   ElHeaterState: {0: Heating, 1: TempReached, 2: NoFreePower, 3: LowSOC, 4: 48VFail, 5: TankOvertemperature,
                   6: BoardOvertemperature, 7: InvalidInputs, 8: EleconComError, 9: SwitchError, 10: BalanceSupport, 11: ComfortHeat}
   BlindCmd: {0: None, 1: Up, 2: Down, 3: Stop}   # last command to a sunscreen / blind (position unknown)
+  BoilerStatus: {0: Idle, 1: HeatUp, 2: Heating, 3: CoolDown, 4: Overheat, 5: Error, 6: InvalidInputs}   # = eBoilerState (TECHM HEATING.h); own name, the generated eBoilerStatus must not clash
   RecuRemoteMode: {0: Auto, 1: SlightOverpressure, 2: MaxOverpressure, 3: SlightUnderpressure, 4: MaxUnderpressure}   # = eRecuRemoteReqMode (COM.h)
   RecuLimit: {0: None, 1: Eco, 2: AntiDry, 3: AntifreezeReduced, 4: AntifreezeStop, 5: BatteryOff, 6: InvalidInputs}
     # RECON.c, higher = higher priority: Eco = SOC < 85 % lowers the fan limit, AntiDry = mAntiDryOn (waste RH <= 50 %),
@@ -1123,7 +1124,9 @@ groups:
         legacy: VAR_EL_HEATER_STATUS
         type: enum
         enum: ElHeaterState
-        period_ms: 3000
+        send: on_change   # states step 2c: on change + every 20 s (only the RPi reads it)
+        period_ms: 20000
+        agg: event
         receivers: [RPI]
       - id: 81
         name: EL_HEATER_LOAD_A
@@ -1954,4 +1957,153 @@ groups:
             enum: RecuLimit
             period_ms: 20000
             agg: event
+            receivers: [RPI]
+      Techm:   # read in APP_UpdateStates_1s() after all 1 s control tasks; valves / water requests are periodic
+        producer: TECHM
+        vars:
+          - id: 440   # TEMPCON mUpReqTempDay (TC_Init 21.5)
+            name: ST_UP_REQ_DAY_C
+            field: UpReqTempDay_C
+            type: float
+            unit: '°C'
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 441   # TEMPCON mUpReqTempNight (19.5)
+            name: ST_UP_REQ_NIGHT_C
+            field: UpReqTempNight_C
+            type: float
+            unit: '°C'
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 442   # TEMPCON mDownReqTempDay (21.5)
+            name: ST_DOWN_REQ_DAY_C
+            field: DownReqTempDay_C
+            type: float
+            unit: '°C'
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 443   # TEMPCON mDownReqTempNight (21.5)
+            name: ST_DOWN_REQ_NIGHT_C
+            field: DownReqTempNight_C
+            type: float
+            unit: '°C'
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 444   # BOILER_AIR mBacControlTemp_C (= BAC_DEF_CONTROL_TEMP 200)
+            name: ST_EXHAUST_SET_C
+            field: ExhaustSetpoint_C
+            type: float
+            unit: '°C'
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 445   # TEMPCON upReqTemp in effect (day or night value)
+            name: ST_UP_REQ_C
+            field: UpReqTemp_C
+            type: float
+            unit: '°C'
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 446   # TEMPCON downReqTemp in effect
+            name: ST_DOWN_REQ_C
+            field: DownReqTemp_C
+            type: float
+            unit: '°C'
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 447   # TEMPCON mRadOn (radiator circuit on)
+            name: ST_RAD_ON
+            field: RadOn
+            type: bool
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 448   # TEMPCON mWallOn (wall circuit on)
+            name: ST_WALL_ON
+            field: WallOn
+            type: bool
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 449   # last DO_SetPumpBoiler() (HEATING)
+            name: ST_PUMP_BOILER
+            field: PumpBoiler
+            type: bool
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 450   # last DO_SetPumpWall() (TEMPCON)
+            name: ST_PUMP_WALL
+            field: PumpWall
+            type: bool
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 451   # last DO_SetPumpRad() (TEMPCON)
+            name: ST_PUMP_RAD
+            field: PumpRad
+            type: bool
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 452   # coils on = bits set in the last DO_SetElHeaters() mask (0..6)
+            name: ST_EL_HEATER_COILS
+            field: ElHeaterCoils
+            type: uint32
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 453   # HEATING mBoilerState (HC_GetStatus)
+            name: ST_BOILER_STATE
+            field: BoilerState
+            type: enum
+            enum: BoilerStatus
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 460   # last DO_SetServoWall() % (TEMPCON)
+            name: TECHM_VALVE_WALL_PCT
+            field: ValveWall_pct
+            unit: '%'
+            send: periodic   # process value, not a state: sent every 5 s, logged as avg
+            period_ms: 5000
+            log_s: 60
+            receivers: [RPI]
+          - id: 461   # last DO_SetServoRad() % (TEMPCON)
+            name: TECHM_VALVE_RAD_PCT
+            field: ValveRad_pct
+            unit: '%'
+            send: periodic   # process value, not a state: sent every 5 s, logged as avg
+            period_ms: 5000
+            log_s: 60
+            receivers: [RPI]
+          - id: 462   # last DO_SetServoAirValve() %: servo signal 20..100 = 2..10 V (AVC_V2), not the flap opening
+            name: TECHM_AIR_VALVE_SIGNAL_PCT
+            field: AirValveSignal_pct
+            unit: '%'
+            send: periodic   # process value, not a state: sent every 5 s, logged as avg
+            period_ms: 5000
+            log_s: 60
+            receivers: [RPI]
+          - id: 463   # TEMPCON mReqWaterRad_C
+            name: TECHM_REQ_WATER_RAD_C
+            field: ReqWaterRad_C
+            unit: '°C'
+            send: periodic   # process value, not a state: sent every 5 s, logged as avg
+            period_ms: 5000
+            log_s: 60
+            receivers: [RPI]
+          - id: 464   # TEMPCON mReqWaterWall_C
+            name: TECHM_REQ_WATER_WALL_C
+            field: ReqWaterWall_C
+            unit: '°C'
+            send: periodic   # process value, not a state: sent every 5 s, logged as avg
+            period_ms: 5000
+            log_s: 60
             receivers: [RPI]
