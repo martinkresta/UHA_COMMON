@@ -321,6 +321,8 @@ const sVarMeta VarMeta[VARS_COUNT] =
   { &Vars2.States.EleconD.Sklep_pct,              499, 20000, 60000, VT_UINT32, NODEID_ELECON_D,  VMF_ON_CAN | VMF_ON_CHANGE },
   { &Vars2.States.Recu.RemoteMode,                510, 20000, 60000, VT_ENUM,   NODEID_RECU,      VMF_ON_CAN | VMF_ON_CHANGE },
   { &Vars2.States.Recu.Limit,                     511, 20000, 60000, VT_ENUM,   NODEID_RECU,      VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Recu.Co2Setpoint_ppm,           512, 20000, 60000, VT_UINT32, NODEID_RECU,      VMF_ON_CAN | VMF_ON_CHANGE },
+  { &Vars2.States.Recu.AntiDryRh_pct,             513, 20000, 60000, VT_FLOAT,  NODEID_RECU,      VMF_ON_CAN | VMF_ON_CHANGE },
 };
 
 /* every struct is a plain array of 8-byte {value, valid} items (VARS2_SetGroupValid()) */
@@ -359,10 +361,10 @@ typedef char VARS2_SIZE_sVarsStatesIoboardU[(sizeof(sVarsStatesIoboardU)       =
 typedef char VARS2_SIZE_sVarsStatesIoboardD[(sizeof(sVarsStatesIoboardD)       ==   3u * VAR_ITEM_SIZE) ? 1 : -1];
 typedef char VARS2_SIZE_sVarsStatesEleconD[(sizeof(sVarsStatesEleconD)        ==  10u * VAR_ITEM_SIZE) ? 1 : -1];
 typedef char VARS2_SIZE_sVarsStatesElecon[(sizeof(sVarsStatesElecon)         ==   4u * VAR_ITEM_SIZE) ? 1 : -1];
-typedef char VARS2_SIZE_sVarsStatesRecu[(sizeof(sVarsStatesRecu)           ==   2u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVarsStatesRecu[(sizeof(sVarsStatesRecu)           ==   4u * VAR_ITEM_SIZE) ? 1 : -1];
 typedef char VARS2_SIZE_sVarsStatesTechm[(sizeof(sVarsStatesTechm)          ==  19u * VAR_ITEM_SIZE) ? 1 : -1];
-typedef char VARS2_SIZE_sVarsStates[(sizeof(sVarsStates)               ==  52u * VAR_ITEM_SIZE) ? 1 : -1];
-typedef char VARS2_SIZE_sVars[(sizeof(sVars) == 310u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVarsStates[(sizeof(sVarsStates)               ==  54u * VAR_ITEM_SIZE) ? 1 : -1];
+typedef char VARS2_SIZE_sVars[(sizeof(sVars) == 312u * VAR_ITEM_SIZE) ? 1 : -1];
 
 const uint16_t VarIdToIndex[VAR_MAX_ID + 1] =
 {
@@ -417,5 +419,5 @@ const uint16_t VarIdToIndex[VAR_MAX_ID + 1] =
   /* 480 */             294,             295,             296,             297, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
   /* 490 */             298,             299,             300,             301,             302,             303,             304,             305,             306,             307,
   /* 500 */ VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN, VAR_IDX_UNKNOWN,
-  /* 510 */             308,             309
+  /* 510 */             308,             309,             310,             311
 };

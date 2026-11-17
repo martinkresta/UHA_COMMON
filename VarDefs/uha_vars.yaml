@@ -1950,7 +1950,7 @@ groups:
             period_ms: 20000
             agg: event
             receivers: [RPI]
-      Recu:   # RECON.c: remote request mode + highest-priority fan limitation of the last RECON_Update_1s()
+      Recu:   # RECON.c: remote request mode, highest-priority fan limitation of the last RECON_Update_1s(), setpoints
         producer: RECU
         vars:
           - id: 510   # mRemoteMode (eRecuRemoteReqMode in COM.h)
@@ -1966,6 +1966,22 @@ groups:
             field: Limit
             type: enum
             enum: RecuLimit
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 512   # RECON mCo2Setpoint_ppm (default 600): fans rise above it, (CO2 - setpoint) / 10 %
+            name: ST_RECU_CO2_SETPOINT
+            field: Co2Setpoint_ppm
+            type: uint32
+            unit: ppm
+            period_ms: 20000
+            agg: event
+            receivers: [RPI]
+          - id: 513   # RECON mAntiDryRh_pct (default RH_ANTI_DRY 50): anti dry fan limit on at RH <= it (+2 % hysteresis)
+            name: ST_RECU_ANTIDRY_RH
+            field: AntiDryRh_pct
+            type: float
+            unit: '%'
             period_ms: 20000
             agg: event
             receivers: [RPI]
@@ -2381,3 +2397,56 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     state: ST_AKUPACK_SET_NIGHT_C
     category: heating
     desc: Akupack heater setpoint night (mAkupackSetNight_C, default 7), hysteresis 0.5
+  # ELECON inverters (step 3c): AC_Command() = the wall switch (on only from Off, off at once); 300 W has no command
+  - id: 401
+    name: CMD_AC_3KW
+    target: ELECON
+    type: bool
+    state: ST_AC_3KW
+    category: inverter
+    desc: 3 kW inverter, 1 = on (as the wall switch, min 15 min, then auto off at low load), 0 = off
+  - id: 402
+    name: CMD_AC_5KW
+    target: ELECON
+    type: bool
+    state: ST_AC_5KW
+    category: inverter
+    desc: 5 kW inverter, 1 = on (as the wall switch, min 5 min, then auto off at low load), 0 = off
+  # ELECON_D inverters (step 3c)
+  - id: 705
+    name: CMD_AC_AXPERT
+    target: ELECON_D
+    type: bool
+    state: ST_AC_AXPERT
+    category: inverter
+    desc: Axpert 8 kW inverter, 1 = on (as the wall switch, min 5 min, then auto off at low load), 0 = off; LEMON low-SOC off wins
+  - id: 706
+    name: CMD_AC_VICTRON
+    target: ELECON_D
+    type: bool
+    state: ST_AC_VICTRON
+    category: inverter
+    desc: Victron 2 kW inverter, 1 = keep on (default), 0 = off; LEMON switches it off while all loads are blocked (low SOC)
+  # RECU setpoints (step 3c): RECON_Set*(), RAM only (default after reset); no mode commands from the UI
+  - id: 501
+    name: CMD_RECU_CO2_SETPOINT
+    target: RECU
+    type: uint32
+    min: 400
+    max: 1200
+    step: 50
+    unit: ppm
+    state: ST_RECU_CO2_SETPOINT
+    category: ventilation
+    desc: CO2 where the fans start to rise (default 600), fan % = (CO2 - setpoint) / 10, capped by the day / night / eco limits
+  - id: 502
+    name: CMD_RECU_ANTIDRY_RH
+    target: RECU
+    type: float
+    min: 20
+    max: 70
+    step: 1
+    unit: '%'
+    state: ST_RECU_ANTIDRY_RH
+    category: ventilation
+    desc: Anti dry limit (default 50), fans limited to 20 % while RH <= it (off again above it + 2)

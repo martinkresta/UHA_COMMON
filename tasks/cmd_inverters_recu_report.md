@@ -85,3 +85,14 @@ Feedback: the existing states `ST_AC_300W/3KW/5KW` (ELECON) and `ST_AC_AXPERT` (
 
 Please confirm or change: the table in section 2 (especially 300 W "on" only and no Victron command), RECU option
 (a)/(b), and whether the Axpert init fix goes in.
+
+## 5. Decision (Martin, 2026-11-17) and phase 2
+
+1. 3 kW / 5 kW / Axpert: as proposed (`AC_Command()`), ids 401, 402 (ELECON), 705 (ELECON_D).
+2. 300 W: no command (always on today, its control is not used).
+3. Victron: LEMON keeps it on and switches it off only at low SOC (all-loads protection); the UI can switch it off /
+   on (`CMD_AC_VICTRON` 706 -> `LEMON_SetVictronRequest()`, default on).
+4. RECU: no mode commands; only the CO2 setpoint (501) and the anti dry RH limit (502), new states 512 / 513.
+   The stove automation (0x140 from TECHM) stays as it is.
+5. Axpert init: fixed, REL1 off after reset (state and relay `Off`).
+Also in 3b: the IOBOARD_D downstairs-off gesture uses slots 0 / 1; the exhaust setpoint applies at once.

@@ -9,10 +9,10 @@
 #include <stdint.h>
 #include "VARS2_types.h"
 
-#define VARS_COUNT         310
-#define VAR_MAX_ID         511
-#define VARS_ON_CAN_COUNT  197
-#define VARS_ON_CHANGE_COUNT 48
+#define VARS_COUNT         312
+#define VAR_MAX_ID         513
+#define VARS_ON_CAN_COUNT  199
+#define VARS_ON_CHANGE_COUNT 50
 
 /* ---- variable ids ---- */
 typedef enum
@@ -327,6 +327,8 @@ typedef enum
   VID_ST_LIGHT_SKLEP             = 499,  /* States.EleconD, % */
   VID_ST_RECU_REMOTE_MODE        = 510,  /* States.Recu */
   VID_ST_RECU_LIMIT              = 511,  /* States.Recu */
+  VID_ST_RECU_CO2_SETPOINT       = 512,  /* States.Recu, ppm */
+  VID_ST_RECU_ANTIDRY_RH         = 513,  /* States.Recu, % */
 } eVarId;
 
 /* ---- enums ---- */
@@ -725,8 +727,10 @@ typedef struct
 
 typedef struct
 {
-  sVarI32 RemoteMode; /* id 510, enum eRecuRemoteMode */
-  sVarI32 Limit;      /* id 511, enum eRecuLimit */
+  sVarI32 RemoteMode;      /* id 510, enum eRecuRemoteMode */
+  sVarI32 Limit;           /* id 511, enum eRecuLimit */
+  sVarU32 Co2Setpoint_ppm; /* id 512, ppm */
+  sVarF32 AntiDryRh_pct;   /* id 513, % */
 } sVarsStatesRecu;
 
 typedef struct

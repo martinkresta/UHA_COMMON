@@ -10,8 +10,8 @@
 #include <stdint.h>
 #include "VARS2_types.h"   /* eVarType VT_* */
 
-#define CMDS_COUNT   25
-#define CMD_MAX_ID   704
+#define CMDS_COUNT   31
+#define CMD_MAX_ID   706
 
 /* ---- command ids ---- */
 typedef enum
@@ -38,10 +38,16 @@ typedef enum
   CMDID_DOWN_REQ_DAY          = 303,  /* TECHM, float 5..25 degC, state ST_DOWN_REQ_DAY_C */
   CMDID_DOWN_REQ_NIGHT        = 304,  /* TECHM, float 5..25 degC, state ST_DOWN_REQ_NIGHT_C */
   CMDID_EXHAUST_SET           = 305,  /* TECHM, float 150..250 degC, state ST_EXHAUST_SET_C */
+  CMDID_AC_3KW                = 401,  /* ELECON, bool 0..1, state ST_AC_3KW */
+  CMDID_AC_5KW                = 402,  /* ELECON, bool 0..1, state ST_AC_5KW */
+  CMDID_RECU_CO2_SETPOINT     = 501,  /* RECU, uint32 400..1200 ppm, state ST_RECU_CO2_SETPOINT */
+  CMDID_RECU_ANTIDRY_RH       = 502,  /* RECU, float 20..70 %, state ST_RECU_ANTIDRY_RH */
   CMDID_LIGHT_KOLARNA         = 701,  /* ELECON_D, uint32 0..100 %, state ST_LIGHT_KOLARNA */
   CMDID_LIGHT_SKLEP           = 702,  /* ELECON_D, uint32 0..100 %, state ST_LIGHT_SKLEP */
   CMDID_AKUPACK_SET_DAY       = 703,  /* ELECON_D, float 0..15 degC, state ST_AKUPACK_SET_DAY_C */
   CMDID_AKUPACK_SET_NIGHT     = 704,  /* ELECON_D, float 0..15 degC, state ST_AKUPACK_SET_NIGHT_C */
+  CMDID_AC_AXPERT             = 705,  /* ELECON_D, bool 0..1, state ST_AC_AXPERT */
+  CMDID_AC_VICTRON            = 706,  /* ELECON_D, bool 0..1, state ST_AC_VICTRON */
 } eCmdId;
 
 /* ---- limits: the target module clamps to these (one source of truth for UI and FW) ---- */
@@ -87,6 +93,14 @@ typedef enum
 #define CMD_DOWN_REQ_NIGHT_MAX        25.0f
 #define CMD_EXHAUST_SET_MIN           150.0f
 #define CMD_EXHAUST_SET_MAX           250.0f
+#define CMD_AC_3KW_MIN                0
+#define CMD_AC_3KW_MAX                1
+#define CMD_AC_5KW_MIN                0
+#define CMD_AC_5KW_MAX                1
+#define CMD_RECU_CO2_SETPOINT_MIN     400u
+#define CMD_RECU_CO2_SETPOINT_MAX     1200u
+#define CMD_RECU_ANTIDRY_RH_MIN       20.0f
+#define CMD_RECU_ANTIDRY_RH_MAX       70.0f
 #define CMD_LIGHT_KOLARNA_MIN         0u
 #define CMD_LIGHT_KOLARNA_MAX         100u
 #define CMD_LIGHT_SKLEP_MIN           0u
@@ -95,6 +109,10 @@ typedef enum
 #define CMD_AKUPACK_SET_DAY_MAX       15.0f
 #define CMD_AKUPACK_SET_NIGHT_MIN     0.0f
 #define CMD_AKUPACK_SET_NIGHT_MAX     15.0f
+#define CMD_AC_AXPERT_MIN             0
+#define CMD_AC_AXPERT_MAX             1
+#define CMD_AC_VICTRON_MIN            0
+#define CMD_AC_VICTRON_MAX            1
 
 typedef struct
 {
