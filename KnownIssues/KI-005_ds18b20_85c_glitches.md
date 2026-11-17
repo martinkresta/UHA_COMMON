@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | open — filter + diagnostics in ELECON v002.02 (2026-11-16), cause not known yet |
+| Status | open — filter + diagnostics in ELECON v002.02 and IOBOARD_D v002.02 (flashed 2026-11-17), cause not known yet |
 | Severity | medium |
 | Area | FW UHA_COMMON `TEMP.c` / `OW.c`; seen on ELECON and IOBOARD_D |
 | First seen | 2026-11-15 08:00 (first day of the DB log; probably older) |
-| Occurrences | ELECON: ~1–7 per hour from 15.11 08:00 until 16.11 07:53; none after the restart at 16.11 07:55 (≥ 2.5 h). IOBOARD_D: 13 (board) + 8 (downstairs) in 26 h |
+| Occurrences | ELECON: ~1–7 per hour from 15.11 08:00 until 16.11 07:53; after the restart at 16.11 07:55 none for 6.6 h, then 1–4 per hour (rising) until the flash on 17.11. IOBOARD_D: 13 (board) + 8 (downstairs) in 26 h |
 
 ## Symptom
 Grafana / `raw` table: short upward spikes of all temperatures of one node at the same time (ELECON: board, office,

@@ -14,7 +14,7 @@ Lives in `UHA_COMMON` because it is the one repo shared by all nodes. Issues tha
 | [KI-002](KI-002_bms2_invalid_13min.md) | BMS2 (House 220 Ah) invalid for 13 min, recovered by itself | FW ELECON UART2 / BMS 220 Ah | medium | open | 2026-11-15 |
 | [KI-003](KI-003_bms3_periodic_invalid.md) | BMS3 (House 80 Ah) invalid for ~40 s about every 54 min | FW ELECON UART3 / BMS 80 Ah | low | open | 2026-11-15 |
 | [KI-004](KI-004_elecon_bms_active_never_cleared.md) | ELECON `BMS.c`: `Active` never cleared on timeout, LEMON uses stale BMS data | FW UHA_COMMON `BMS.c` / ELECON LEMON | medium | open | 2026-11-15 |
-| [KI-005](KI-005_ds18b20_85c_glitches.md) | DS18B20 sensors read 85.0 °C (power-on value) for single readouts | FW UHA_COMMON `TEMP.c` / `OW.c`, ELECON, IOBOARD_D | medium | open (filter in ELECON v002.02) | 2026-11-15 |
+| [KI-005](KI-005_ds18b20_85c_glitches.md) | DS18B20 sensors read 85.0 °C (power-on value) for single readouts | FW UHA_COMMON `TEMP.c` / `OW.c`, ELECON, IOBOARD_D | medium | open (filter in ELECON + IOBOARD_D v002.02) | 2026-11-15 |
 
 Severity: **high** = data or control lost until someone acts; **medium** = wrong/missing data or a decision based
 on stale data, recovers; **low** = cosmetic or short gaps.
