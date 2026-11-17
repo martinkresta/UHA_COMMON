@@ -211,6 +211,35 @@ class Group:
 
 
 @dataclass
+class CmdDef:
+    """One entry of the `commands:` list (command channel, CMD_spec.md section 5), as written."""
+    raw: Dict[str, Any]          # YAML entry (without line marker), {} if not a mapping
+    line: Optional[int]
+    index: int                   # position in the commands list
+    id: Any
+    name: Any                    # 'CMD_LIGHT_LOFT_WEST'
+    target: Any                  # node name
+    type: Any
+    enum: Any
+    min: Any                     # as written (None if missing)
+    max: Any
+    unit: Any
+    state: Any                   # VARS2 state variable name (feedback)
+    desc: Any
+
+    @property
+    def base(self) -> str:
+        """Name without the CMD_ prefix ('LIGHT_LOFT_WEST')."""
+        n = self.name if isinstance(self.name, str) else ""
+        return n[4:] if n.startswith("CMD_") else n
+
+    @property
+    def c_id(self) -> str:
+        """eCmdId member: CMDID_<name without CMD_>."""
+        return "CMDID_" + self.base
+
+
+@dataclass
 class Model:
     path: str
     raw: Dict[str, Any]
@@ -222,6 +251,7 @@ class Model:
     enum_lines: Dict[str, int]
     groups: List[Group]          # top-level groups (leaves and containers)
     values: List[Value]          # expanded, sorted by id (values without int id are skipped)
+    commands: List[CmdDef] = field(default_factory=list)   # YAML order; `commands:` section (CMD_spec.md)
 
     @property
     def leaf_groups(self) -> List[Group]:
@@ -271,6 +301,20 @@ def legacy_range(legacy: Any):
 
 def _is_int(x) -> bool:
     return isinstance(x, int) and not isinstance(x, bool)
+
+
+def cmd_limits(m: "Model", cd: CmdDef) -> Tuple[Any, Any]:
+    """Effective (min, max) of a command: as written; bool defaults to 0..1, enum to its key range."""
+    lo, hi = cd.min, cd.max
+    if cd.type == "bool":
+        lo = 0 if lo is None else lo
+        hi = 1 if hi is None else hi
+    elif cd.type == "enum" and isinstance(m.enums.get(cd.enum), dict):
+        keys = [k for k in m.enums[cd.enum] if _is_int(k)]
+        if keys:
+            lo = min(keys) if lo is None else lo
+            hi = max(keys) if hi is None else hi
+    return lo, hi
 
 
 def load_yaml(path: str) -> Dict[str, Any]:
@@ -390,9 +434,20 @@ def load_model(path: str) -> Model:
                     vid=f"VID_{d.name}", c_ref=f"{lf.path}.{d.c_field}"))
     values.sort(key=lambda v: (v.id, v.name))
 
+    commands: List[CmdDef] = []
+    craw = data.get("commands")
+    if isinstance(craw, list):
+        for i, c in enumerate(craw):
+            cd = c if isinstance(c, dict) else {}
+            r = _strip(cd)
+            commands.append(CmdDef(raw=r, line=cd.get(LINE_KEY), index=i, id=r.get("id"), name=r.get("name"),
+                                   target=r.get("target"), type=r.get("type"), enum=r.get("enum"),
+                                   min=r.get("min"), max=r.get("max"), unit=r.get("unit"),
+                                   state=r.get("state"), desc=r.get("desc")))
+
     return Model(path=path, raw=data, version=data.get("version"), nodes=nodes,
                  node_lines=node_lines, defaults=defaults, enums=enums, enum_lines=enum_lines,
-                 groups=groups, values=values)
+                 groups=groups, values=values, commands=commands)
 
 
 if __name__ == "__main__":
@@ -406,3 +461,7 @@ if __name__ == "__main__":
             arr = f"[{d.n}]" if d.is_array else ""
             print(f"  {d.id!s:>4} {d.name:<28} -> {d.c_field}{arr}  {d.type} "
                   f"per={d.period_ms} to={d.timeout_ms} can={d.on_can} send={d.send}")
+    if m.commands:
+        print(f"\ncommands ({len(m.commands)})")
+        for c in m.commands:
+            print(f"  {c.id!s:>4} {c.name:<28} -> {c.target}  {c.type} {c.min}..{c.max}  state={c.state}")

@@ -4,6 +4,8 @@ vars_gen_fw.py - VARS2 firmware C code generator (spec section 4).
 Generates from uha_vars.yaml:
     uha_vars_gen.h   eVarId, enums, group structs ({value, valid} fields), sVars, externs, counts
     uha_vars_gen.c   Vars2, VarMeta[], VarIdToIndex[], struct size checks
+    uha_cmds_gen.h   eCmdId (CMDID_<name without CMD_>), CMD_<NAME>_MIN/_MAX, sCmdMeta  (`commands:`)
+    uha_cmds_gen.c   CmdMeta[] {id, target, type}, sorted by id  (CMD_spec.md section 5)
 
 VARS2_types.h is hand-written (sVarF32/sVarI32/sVarU32, sVarMeta, eVarType, VMF_*).
 
@@ -31,10 +33,12 @@ import sys
 from typing import List
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from vars_model import Model, VarsYamlError, load_model  # noqa: E402
+from vars_model import Model, VarsYamlError, cmd_limits, load_model  # noqa: E402
 
 HDR_NAME = "uha_vars_gen.h"
 SRC_NAME = "uha_vars_gen.c"
+CMD_HDR_NAME = "uha_cmds_gen.h"
+CMD_SRC_NAME = "uha_cmds_gen.c"
 
 C_TYPE = {"float": "sVarF32", "int32": "sVarI32", "uint32": "sVarU32", "bool": "sVarI32", "enum": "sVarI32"}
 VT = {"float": "VT_FLOAT", "int32": "VT_INT32", "uint32": "VT_UINT32", "bool": "VT_BOOL", "enum": "VT_ENUM"}
@@ -287,6 +291,118 @@ def gen_source(model: Model) -> str:
     return "\n".join(L)
 
 
+# ---------------------------------------------------------------------------
+# Commands (CMD_spec.md section 5): uha_cmds_gen.h / .c
+# ---------------------------------------------------------------------------
+def _check_cmds(model: Model):
+    errs = []
+    for cd in model.commands:
+        where = f"command {cd.name} (line {cd.line})"
+        if not _is_int(cd.id) or not (0 < cd.id < U16_MAX):
+            errs.append(f"{where}: id missing or out of uint16 range")
+        if not isinstance(cd.name, str) or not cd.name.startswith("CMD_") or len(cd.name) <= 4:
+            errs.append(f"{where}: name must start with CMD_")
+        if cd.type not in VT:
+            errs.append(f"{where}: unknown type {cd.type!r}")
+        if cd.target not in model.nodes or cd.target == "RPI":
+            errs.append(f"{where}: target {cd.target!r} is not a node")
+        lo, hi = cmd_limits(model, cd)
+        if not (_is_num(lo) and _is_num(hi)):
+            errs.append(f"{where}: min/max missing")
+    ids = [cd.id for cd in model.commands]
+    if len(ids) != len(set(ids)):
+        errs.append("duplicate command ids")
+    if errs:
+        raise GenError("cannot generate command code:\n  " + "\n  ".join(errs))
+
+
+def _is_num(x) -> bool:
+    return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+
+def _c_limit(cd, v) -> str:
+    """C literal of a limit in the command's type."""
+    if cd.type == "float":
+        s = repr(float(v))
+        return f"({s}f)" if s.startswith("-") else f"{s}f"
+    if cd.type == "uint32":
+        return f"{int(v)}u"
+    return f"({int(v)})" if int(v) < 0 else str(int(v))
+
+
+def gen_cmd_header(model: Model) -> str:
+    cmds = sorted(model.commands, key=lambda c: c.id)
+    max_id = max((c.id for c in cmds), default=0)
+    hc = _header_comment(model)
+    hc.insert(len(hc) - 1, " * command channel (CMD_spec.md): used by CMD.c (CMD_ProcessFrame) and APP_OnCommand()")
+    L = hc + [
+        "",
+        "#ifndef UHA_CMDS_GEN_H_",
+        "#define UHA_CMDS_GEN_H_",
+        "",
+        "#include <stdint.h>",
+        '#include "VARS2_types.h"   /* eVarType VT_* */',
+        "",
+        f"#define CMDS_COUNT   {len(cmds)}",
+        f"#define CMD_MAX_ID   {max_id}",
+        "",
+        "/* ---- command ids ---- */",
+        "typedef enum",
+        "{",
+    ]
+    w = max([len(c.c_id) for c in cmds] + [len("CMDID_NONE")])
+    L.append(f"  {'CMDID_NONE':<{w}} =   0,  /* never sent */")
+    for c in cmds:
+        lo, hi = cmd_limits(model, c)
+        unit = f" {_ascii(c.unit)}" if c.unit else ""
+        kind = f"enum e{c.enum}" if c.type == "enum" else c.type
+        L.append(f"  {c.c_id:<{w}} = {c.id:>3},  /* {c.target}, {kind} {lo}..{hi}{unit}, state {c.state} */")
+    L += ["} eCmdId;", ""]
+
+    L.append("/* ---- limits: the target module clamps to these (one source of truth for UI and FW) ---- */")
+    if cmds:
+        nw = max(len(c.name) for c in cmds) + 4
+        for c in cmds:
+            lo, hi = cmd_limits(model, c)
+            L.append(f"#define {c.name + '_MIN':<{nw}} {_c_limit(c, lo)}")
+            L.append(f"#define {c.name + '_MAX':<{nw}} {_c_limit(c, hi)}")
+    L += [
+        "",
+        "typedef struct",
+        "{",
+        "  uint16_t Id;       /* eCmdId */",
+        "  uint8_t  Target;   /* node id (NODEID_*) */",
+        "  uint8_t  Type;     /* eVarType: how the 4 value bytes are read */",
+        "} sCmdMeta;",
+        "",
+        "extern const sCmdMeta CmdMeta[];   /* CMDS_COUNT entries, sorted by id */",
+        "",
+        "#endif /* UHA_CMDS_GEN_H_ */",
+        "",
+    ]
+    return "\n".join(L)
+
+
+def gen_cmd_source(model: Model) -> str:
+    cmds = sorted(model.commands, key=lambda c: c.id)
+    L = _header_comment(model) + [
+        "",
+        '#include "uha_cmds_gen.h"',
+        '#include "MCAN.h"   /* NODEID_* */',
+        "",
+    ]
+    if not cmds:
+        L += ["const sCmdMeta CmdMeta[1] = { { 0, 0, 0 } };   /* no commands (CMDS_COUNT 0) */", ""]
+        return "\n".join(L)
+    rows = [[f"{c.c_id},", f"NODEID_{c.target},", VT[c.type]] for c in cmds]
+    widths = [max(len(r[i]) for r in rows) for i in range(3)]
+    L += ["const sCmdMeta CmdMeta[CMDS_COUNT] =", "{"]
+    for r in rows:
+        L.append("  { " + " ".join(f"{x:<{widths[i]}}" for i, x in enumerate(r)).rstrip() + " },")
+    L += ["};", ""]
+    return "\n".join(L)
+
+
 def _write(path: str, text: str) -> bool:
     data = text.encode("ascii")  # raises on any non-ASCII slip
     if os.path.exists(path):
@@ -299,15 +415,18 @@ def _write(path: str, text: str) -> bool:
 
 
 def generate(model: Model, inc_dir: str, src_dir: str) -> List[str]:
-    """Write uha_vars_gen.h into inc_dir and uha_vars_gen.c into src_dir;
-    returns the paths of files actually rewritten."""
+    """Write uha_vars_gen.h / uha_cmds_gen.h into inc_dir and uha_vars_gen.c / uha_cmds_gen.c into
+    src_dir; returns the paths of files actually rewritten."""
     _check(model)
+    _check_cmds(model)
     os.makedirs(inc_dir, exist_ok=True)
     os.makedirs(src_dir, exist_ok=True)
     written = []
     for name, outdir, text in (
         (HDR_NAME, inc_dir, gen_header(model)),
         (SRC_NAME, src_dir, gen_source(model)),
+        (CMD_HDR_NAME, inc_dir, gen_cmd_header(model)),
+        (CMD_SRC_NAME, src_dir, gen_cmd_source(model)),
     ):
         p = os.path.join(outdir, name)
         if _write(p, text):
@@ -341,7 +460,7 @@ def main(argv=None) -> int:
     except (VarsYamlError, GenError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
-    for name, outdir in ((HDR_NAME, inc_dir), (SRC_NAME, src_dir)):
+    for name, outdir in ((HDR_NAME, inc_dir), (SRC_NAME, src_dir), (CMD_HDR_NAME, inc_dir), (CMD_SRC_NAME, src_dir)):
         p = os.path.join(outdir, name)
         print(f"{'written  ' if p in written else 'unchanged'} {p}")
     return 0

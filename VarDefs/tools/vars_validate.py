@@ -24,6 +24,11 @@ uha.json); the firmware no longer uses them.
 Layout rules (direct access): groups hold `vars` or `subgroups` (max 3 levels), one producer per
 group (on the group or its container, never on a variable), explicit `field` names with the unit
 suffix, groups sharing a `struct` have identical field lists.
+
+Commands (`commands:`, CMD_spec.md section 5): unique id / name (CMD_ prefix), id in the target's range
+(node id x 100 .. + 99), target a node and not RPI, known type (enum needs `enum:`), min/max numbers
+(required for float/int32/uint32; bool defaults 0..1, enum its key range), min <= max, `state` an existing
+VARS2 variable produced by the target. With a baseline: command ids are not renamed or retyped.
 """
 
 import argparse
@@ -38,13 +43,16 @@ import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vars_model import (FIELD_SUFFIX, SEND_MODES, TYPES, UNIT_NAME_TOKEN, UNIT_TOKENS, VALIDITY,  # noqa: E402
-                        Group, Model, VarDef, VarsYamlError, legacy_range, load_model)
+                        Group, Model, VarDef, VarsYamlError, cmd_limits, legacy_range, load_model)
 
 VARDEFS_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_MCAN_H = VARDEFS_DIR.parent / "Inc" / "MCAN.h"
 RE_NODEID = re.compile(r"#define\s+NODEID_(\w+)\s+(\d+)")
 
-KNOWN_TOP_KEYS = {"version", "nodes", "defaults", "enums", "groups"}
+KNOWN_TOP_KEYS = {"version", "nodes", "defaults", "enums", "groups", "commands"}
+KNOWN_CMD_KEYS = {"id", "name", "target", "type", "enum", "min", "max", "unit", "state", "desc"}
+RE_CMD_NAME = re.compile(r"^CMD_[A-Z0-9_]+$")
+CMD_IDS_PER_NODE = 100   # command id range of a node = node id x 100 .. + 99 (CMD_spec.md section 5)
 KNOWN_GROUP_KEYS = {"producer", "vars", "subgroups", "struct", "validity", "send"}
 KNOWN_VAR_KEYS = {"id", "name", "field", "legacy", "type", "enum", "unit", "legacy_scale",
                   "period_ms", "timeout_ms", "on_can", "count", "receivers", "desc",
@@ -661,6 +669,22 @@ def _rule_baseline(c: _Ctx, baseline):
         if n is not None and n.id != b.id:
             c.ve(n.base, "id", f"{b.name} had id {b.id} in {bname}, now {n.id} (ids must not change)")
 
+    # commands: ids are never reused or renamed either
+    cur_cmd = {cd.id: cd for cd in c.m.commands if _is_int(cd.id)}
+    for b in base.commands:
+        if not _is_int(b.id):
+            continue
+        cd = cur_cmd.get(b.id)
+        ln = (cd.line if cd is not None else 0) or 0
+        if cd is None:
+            c.add("W", 0, "baseline", f"command id {b.id} ({b.name}) removed since {bname}; never reuse it")
+        elif cd.name != b.name:
+            c.add("E", ln, f"commands/{cd.name}", f"command id {b.id} was {b.name} in {bname}, now {cd.name} "
+                                                  f"(ids must not be reused/renamed)")
+        elif cd.type != b.type:
+            c.add("E", ln, f"commands/{cd.name}", f"type of command id {b.id} changed {b.type!r} -> {cd.type!r} "
+                                                  f"(vs {bname})")
+
 
 # ---------------------------------------------------------------------------
 # Rule 11: unit vs name, scale vs integer types
@@ -695,6 +719,123 @@ def _rule_units(c: _Ctx):
 
 
 # ---------------------------------------------------------------------------
+# Rule 12: commands (CMD_spec.md section 5)
+# ---------------------------------------------------------------------------
+def _rule_commands(c: _Ctx):
+    m = c.m
+    raw = m.raw.get("commands")
+    if raw is None:
+        return
+    if not isinstance(raw, list):
+        c.add("E", c.kl("commands"), "commands", "'commands' must be a list")
+        return
+    values = m.by_name()
+    seen_id: Dict[int, Any] = {}
+    seen_name: Dict[str, Any] = {}
+    for cd in m.commands:
+        where = f"commands/{cd.name if isinstance(cd.name, str) else '#' + str(cd.index + 1)}"
+
+        def kl(key=None, _cd=cd):
+            if key is not None:
+                ln = c.kl("commands", _cd.index, key)
+                if ln:
+                    return ln
+            return _cd.line or c.kl("commands", _cd.index)
+
+        def err(key, msg, _w=where, _kl=kl):
+            c.add("E", _kl(key), _w, msg)
+
+        if cd.line is None:
+            err(None, "command entry is not a mapping")
+            continue
+        for k in cd.raw:
+            if k not in KNOWN_CMD_KEYS:
+                c.add("W", kl(k), where, f"unknown key '{k}'")
+        for k in ("id", "name", "target", "type", "state"):
+            if k not in cd.raw:
+                err(None, f"missing '{k}'")
+
+        # name
+        if isinstance(cd.name, str) and not RE_CMD_NAME.match(cd.name):
+            err("name", f"invalid name {cd.name!r} (must match {RE_CMD_NAME.pattern})")
+        elif "name" in cd.raw and not isinstance(cd.name, str):
+            err("name", f"invalid name {cd.name!r}")
+        if isinstance(cd.name, str):
+            if cd.name in seen_name:
+                err("name", f"duplicate command name {cd.name} (also line {seen_name[cd.name].line})")
+            else:
+                seen_name[cd.name] = cd
+
+        # target
+        tid = None
+        if "target" in cd.raw:
+            if cd.target not in m.nodes:
+                err("target", f"target '{cd.target}' is not a node")
+            elif cd.target in RECEIVE_ONLY_NODES:
+                err("target", f"target '{cd.target}' is a receive-only node")
+            elif _is_int(m.nodes[cd.target]):
+                tid = m.nodes[cd.target]
+
+        # id: unique, in the target's range
+        if "id" in cd.raw:
+            if not _is_int(cd.id):
+                err("id", f"'id' must be an int, got {cd.id!r}")
+            else:
+                if cd.id in seen_id:
+                    err("id", f"duplicate command id {cd.id} (also {seen_id[cd.id].name}, line {seen_id[cd.id].line})")
+                else:
+                    seen_id[cd.id] = cd
+                if tid is not None:
+                    lo, hi = tid * CMD_IDS_PER_NODE, tid * CMD_IDS_PER_NODE + CMD_IDS_PER_NODE - 1
+                    if not lo <= cd.id <= hi:
+                        err("id", f"id {cd.id} outside the range of target {cd.target} ({lo}..{hi})")
+
+        # type, enum
+        type_ok = isinstance(cd.type, str) and cd.type in TYPES
+        if "type" in cd.raw and not type_ok:
+            err("type", f"invalid type {cd.type!r} (allowed: {', '.join(TYPES)})")
+        if cd.type == "enum":
+            if cd.enum is None:
+                err("type", "type enum requires 'enum: <EnumName>'")
+            elif not isinstance(cd.enum, str) or cd.enum not in m.enums:
+                err("enum", f"enum '{cd.enum}' is not defined in 'enums'")
+        elif cd.enum is not None:
+            c.add("W", kl("enum"), where, f"'enum' given on non-enum type {cd.type!r} (ignored)")
+
+        # min / max
+        if type_ok:
+            for k in ("min", "max"):
+                v = cd.raw.get(k)
+                if v is None:
+                    if cd.type in ("float", "int32", "uint32"):
+                        err(None, f"missing '{k}' (required for type {cd.type})")
+                    continue
+                if not _is_num(v):
+                    err(k, f"'{k}' must be a number, got {v!r}")
+                elif cd.type != "float" and not _is_int(v):
+                    err(k, f"'{k}' must be an int for type {cd.type}, got {v!r}")
+                elif cd.type == "uint32" and not 0 <= v <= 0xFFFFFFFF:
+                    err(k, f"'{k}' {v} out of uint32 range")
+                elif cd.type in ("int32", "enum") and not -0x80000000 <= v <= 0x7FFFFFFF:
+                    err(k, f"'{k}' {v} out of int32 range")
+                elif cd.type == "bool" and v not in (0, 1):
+                    err(k, f"'{k}' must be 0 or 1 for type bool, got {v!r}")
+            lo, hi = cmd_limits(m, cd)
+            if _is_num(lo) and _is_num(hi) and lo > hi:
+                err("min", f"min {lo} > max {hi}")
+        if cd.unit is not None and not isinstance(cd.unit, str):
+            err("unit", f"'unit' must be a string, got {cd.unit!r}")
+
+        # state: an existing VARS2 variable produced by the target
+        if "state" in cd.raw:
+            v = values.get(cd.state) if isinstance(cd.state, str) else None
+            if v is None:
+                err("state", f"state '{cd.state}' is not a VARS2 variable")
+            elif cd.target in m.nodes and v.producer != cd.target:
+                err("state", f"state {cd.state} is produced by {v.producer}, not by the target {cd.target}")
+
+
+# ---------------------------------------------------------------------------
 def validate(model: Model, baseline=None, src_root=None, mcan_h=None) -> List[Issue]:
     c = _Ctx(model)
     _rule_schema(c)
@@ -709,6 +850,7 @@ def validate(model: Model, baseline=None, src_root=None, mcan_h=None) -> List[Is
     if baseline is not None:
         _rule_baseline(c, baseline)
     _rule_units(c)
+    _rule_commands(c)
     # dedupe identical issues, deterministic order
     uniq = {(i.severity, i.line, i.where, i.msg): i for i in c.issues}
     return sorted(uniq.values(), key=Issue.sort_key)

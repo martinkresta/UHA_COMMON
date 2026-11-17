@@ -213,6 +213,7 @@ Max frame 14 bytes. Payload max 10 bytes (`RSP_PACKET_SIZE` 14 in ELECON).
 | `0x221` | ELECON → RPi | old variable: `id_hi id_lo val_hi val_lo valid_hi valid_lo` (int16, big-endian), from ELECON's scan list | **kept** until migration step 6b |
 | `0x620` | ELECON → RPi | node log message, 8 bytes (byte 0 = node id) | kept |
 | `0x051` | RPi → ELECON | RTC sync (4 B big-endian time) | kept |
+| **`0x052`** | RPi → ELECON | **command** `CMD_RPI_COMMAND`: target, cmd id u16 LE, value 4 B LE, seq (`CMD_spec.md` §2); ELECON forwards it to CAN `0x200 + target` | **new** (step 3) |
 | `0x050`, `0x120`, `0x713`, `0x777` | RPi → ELECON | var value / set var / read var request / master HB | kept, unused by the gateway today |
 | **`0x180 + n`** (`0x180..0x18F`) | ELECON → RPi | **VARS2 tunnel:** the 8 data bytes of a VARS2 CAN frame, unchanged (spec §2: `id u16 LE, value 4B LE, flags, seq`). `n` = producer node id | **new** |
 
@@ -250,3 +251,11 @@ The RPi does not distinguish 1/2/3 — producer = `packet id & 0x0F`.
 - Old-format outputs (`uha.json`, `bms.json`) are produced from the preferred
   value converted back with `legacy_scale` (`round(value * legacy_scale)`), so
   the web and other readers are unchanged.
+
+## 8. Commands (`commands:` section)
+
+The YAML also holds the command channel (requests RPi → ELECON → CAN `0x200 + target`), specified in
+**`CMD_spec.md`** (format, ELECON forwarding, node side, YAML rules). The `commands:` section does not change
+the VARS2 generated files; `tools/gen_all.py` validates it and writes `uha_cmds_gen.h/.c` (`eCmdId`,
+`CmdMeta[]`, `CMD_<NAME>_MIN/_MAX`). Feedback of a command is the VARS2 `state` variable it names. RPISERP
+packet id `0x52` = `CMD_RPI_COMMAND` (RPi → ELECON).

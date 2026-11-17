@@ -1,0 +1,18 @@
+# expect: missing 'state'
+version: 1
+nodes: {N1: 1, N2: 2, RPI: 15}
+defaults: {type: float, timeout_ms: auto, on_can: true}
+enums:
+  Mode: {0: Idle, 1: Run, 2: Stop}
+groups:
+  g:
+    producer: N1
+    vars:
+      - {id: 1, name: ST_LIGHT, field: StLight_pct, type: uint32, unit: '%', period_ms: 1000}
+      - {id: 2, name: ST_MODE, field: StMode, type: enum, enum: Mode, period_ms: 1000}
+  h:
+    producer: N2
+    vars:
+      - {id: 3, name: ST_B, field: StB, type: bool, period_ms: 1000}
+commands:
+  - {id: 101, name: CMD_A, target: N1, type: uint32, min: 0, max: 1}

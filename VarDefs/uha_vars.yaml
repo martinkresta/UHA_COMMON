@@ -34,6 +34,15 @@
 #                 | event (one row per change into the `events` table, no log_s; for States)
 #   power_w       documentation only: electrical load of a light / output in W (not used yet)
 #   ELM rule      ELM.c writes power to (energy id + 10): CONS_x_WH id N -> POW_x_W id N+10 (validator checks it)
+#
+# Commands (section `commands:` at the end, CMD_spec.md section 5): requests RPi -> ELECON -> CAN 0x200 + target
+#   id            u16, unique, in the target's range (node id x 100 .. + 99), never reused
+#   name          CMD_<NAME>, gives CMDID_<NAME> (eCmdId) and CMD_<NAME>_MIN / _MAX in uha_cmds_gen.h
+#   target        node that executes the command (not RPI)
+#   type          float | int32 | uint32 | bool | enum (+ enum:); how the 4 value bytes are read
+#   min, max      valid range, the target clamps to it (required for float/int32/uint32; bool 0..1, enum its keys)
+#   unit, desc    for the UI
+#   state         VARS2 state variable produced by the target (UI shows it as feedback)
 
 version: 0
 
@@ -2107,3 +2116,116 @@ groups:
             period_ms: 5000
             log_s: 60
             receivers: [RPI]
+
+commands:   # command channel (CMD_spec.md); requests to the target node, feedback = its `state`
+            # id ranges = node x 100: IOBOARD_D 100-199, IOBOARD_U 200-299, TECHM 300-399, ELECON 400-499,
+            # RECU 500-599, ELECON_D 700-799; ids are never reused
+  # IOBOARD_U lights (step 3a): APP_OnCommand() -> LC_RemoteControl(OUTn, %); UI sends 0 = off, 100 = on
+  - id: 201
+    name: CMD_LIGHT_LOFT_WEST
+    target: IOBOARD_U
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_LOFT_WEST
+    desc: Loft west (OUT1, podkrovi zapad) light, 0 = off, 100 = on
+  - id: 202
+    name: CMD_LIGHT_LOFT_EAST_1
+    target: IOBOARD_U
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_LOFT_EAST_1
+    desc: Loft east 1 (OUT2, podkrovi vychod 1) light, 0 = off, 100 = on
+  - id: 203
+    name: CMD_LIGHT_LOFT_EAST_2
+    target: IOBOARD_U
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_LOFT_EAST_2
+    desc: Loft east 2 (OUT3, podkrovi vychod 2) light, 0 = off, 100 = on
+  - id: 204
+    name: CMD_LIGHT_BEDROOM_SOUTH
+    target: IOBOARD_U
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_BEDROOM_SOUTH
+    desc: Bedroom south (OUT4, loznice jih) light, 0 = off, 100 = on
+  - id: 205
+    name: CMD_LIGHT_BEDROOM_NORTH
+    target: IOBOARD_U
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_BEDROOM_NORTH
+    desc: Bedroom north (OUT5, loznice sever) light, 0 = off, 100 = on
+  - id: 206
+    name: CMD_LIGHT_BATHROOM
+    target: IOBOARD_U
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_BATHROOM
+    desc: Bathroom (OUT6, koupelna) light, 0 = off, 100 = on
+  - id: 207
+    name: CMD_LIGHT_STAIR_STEPS
+    target: IOBOARD_U
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_STAIR_STEPS
+    desc: Stair steps (OUT7, podstupne) light, 0 = off, 100 = on
+  - id: 208
+    name: CMD_LIGHT_STAIRS
+    target: IOBOARD_U
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_STAIRS
+    desc: Stairs (OUT8, schody) light, 0 = off, 100 = on
+  - id: 209
+    name: CMD_LIGHT_HALLWAY
+    target: IOBOARD_U
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_HALLWAY
+    desc: Hallway + porch (OUT9, chodba + predsin) light, 0 = off, 100 = on
+  - id: 210
+    name: CMD_LIGHT_LIVING_ROOM
+    target: IOBOARD_U
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_LIVING_ROOM
+    desc: Living room (OUT10, obyvak) light, 0 = off, 100 = on
+  - id: 211
+    name: CMD_LIGHT_DINING_ROOM
+    target: IOBOARD_U
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_DINING_ROOM
+    desc: Dining room (OUT11, jidelna) light, 0 = off, 100 = on
+  - id: 212
+    name: CMD_LIGHT_KITCHEN
+    target: IOBOARD_U
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_KITCHEN
+    desc: Kitchen (OUT12, kuchyn) light, 0 = off, 100 = on
