@@ -50,7 +50,9 @@ DEFAULT_MCAN_H = VARDEFS_DIR.parent / "Inc" / "MCAN.h"
 RE_NODEID = re.compile(r"#define\s+NODEID_(\w+)\s+(\d+)")
 
 KNOWN_TOP_KEYS = {"version", "nodes", "defaults", "enums", "groups", "commands"}
-KNOWN_CMD_KEYS = {"id", "name", "target", "type", "enum", "min", "max", "unit", "state", "desc"}
+KNOWN_CMD_KEYS = {"id", "name", "target", "type", "enum", "min", "max", "unit", "state", "desc",
+                  "category", "step"}
+CMD_CATEGORIES = ("light", "blind", "heating", "inverter", "ventilation")   # UI grouping only, not used by FW
 RE_CMD_NAME = re.compile(r"^CMD_[A-Z0-9_]+$")
 CMD_IDS_PER_NODE = 100   # command id range of a node = node id x 100 .. + 99 (CMD_spec.md section 5)
 KNOWN_GROUP_KEYS = {"producer", "vars", "subgroups", "struct", "validity", "send"}
@@ -825,6 +827,16 @@ def _rule_commands(c: _Ctx):
                 err("min", f"min {lo} > max {hi}")
         if cd.unit is not None and not isinstance(cd.unit, str):
             err("unit", f"'unit' must be a string, got {cd.unit!r}")
+
+        # category, step: UI hints only (not used by FW)
+        if "category" in cd.raw and cd.raw["category"] not in CMD_CATEGORIES:
+            err("category", f"invalid category {cd.raw['category']!r} (allowed: {', '.join(CMD_CATEGORIES)})")
+        if "step" in cd.raw:
+            s = cd.raw["step"]
+            if not _is_num(s) or not s > 0:
+                err("step", f"'step' must be a number > 0, got {s!r}")
+            elif type_ok and cd.type != "float" and not _is_int(s):
+                err("step", f"'step' must be an int for type {cd.type}, got {s!r}")
 
         # state: an existing VARS2 variable produced by the target
         if "state" in cd.raw:

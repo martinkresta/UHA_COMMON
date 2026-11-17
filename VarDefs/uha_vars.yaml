@@ -43,6 +43,8 @@
 #   min, max      valid range, the target clamps to it (required for float/int32/uint32; bool 0..1, enum its keys)
 #   unit, desc    for the UI
 #   state         VARS2 state variable produced by the target (UI shows it as feedback)
+#   category      optional, UI grouping only (not used by FW): light | blind | heating | inverter | ventilation
+#   step          optional, UI input step hint (not used by FW), > 0, int for non-float types
 
 version: 0
 
@@ -2129,6 +2131,7 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     max: 100
     unit: '%'
     state: ST_LIGHT_LOFT_WEST
+    category: light
     desc: Loft west (OUT1, podkrovi zapad) light, 0 = off, 100 = on
   - id: 202
     name: CMD_LIGHT_LOFT_EAST_1
@@ -2138,6 +2141,7 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     max: 100
     unit: '%'
     state: ST_LIGHT_LOFT_EAST_1
+    category: light
     desc: Loft east 1 (OUT2, podkrovi vychod 1) light, 0 = off, 100 = on
   - id: 203
     name: CMD_LIGHT_LOFT_EAST_2
@@ -2147,6 +2151,7 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     max: 100
     unit: '%'
     state: ST_LIGHT_LOFT_EAST_2
+    category: light
     desc: Loft east 2 (OUT3, podkrovi vychod 2) light, 0 = off, 100 = on
   - id: 204
     name: CMD_LIGHT_BEDROOM_SOUTH
@@ -2156,6 +2161,7 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     max: 100
     unit: '%'
     state: ST_LIGHT_BEDROOM_SOUTH
+    category: light
     desc: Bedroom south (OUT4, loznice jih) light, 0 = off, 100 = on
   - id: 205
     name: CMD_LIGHT_BEDROOM_NORTH
@@ -2165,6 +2171,7 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     max: 100
     unit: '%'
     state: ST_LIGHT_BEDROOM_NORTH
+    category: light
     desc: Bedroom north (OUT5, loznice sever) light, 0 = off, 100 = on
   - id: 206
     name: CMD_LIGHT_BATHROOM
@@ -2174,6 +2181,7 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     max: 100
     unit: '%'
     state: ST_LIGHT_BATHROOM
+    category: light
     desc: Bathroom (OUT6, koupelna) light, 0 = off, 100 = on
   - id: 207
     name: CMD_LIGHT_STAIR_STEPS
@@ -2183,6 +2191,7 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     max: 100
     unit: '%'
     state: ST_LIGHT_STAIR_STEPS
+    category: light
     desc: Stair steps (OUT7, podstupne) light, 0 = off, 100 = on
   - id: 208
     name: CMD_LIGHT_STAIRS
@@ -2192,6 +2201,7 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     max: 100
     unit: '%'
     state: ST_LIGHT_STAIRS
+    category: light
     desc: Stairs (OUT8, schody) light, 0 = off, 100 = on
   - id: 209
     name: CMD_LIGHT_HALLWAY
@@ -2201,6 +2211,7 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     max: 100
     unit: '%'
     state: ST_LIGHT_HALLWAY
+    category: light
     desc: Hallway + porch (OUT9, chodba + predsin) light, 0 = off, 100 = on
   - id: 210
     name: CMD_LIGHT_LIVING_ROOM
@@ -2210,6 +2221,7 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     max: 100
     unit: '%'
     state: ST_LIGHT_LIVING_ROOM
+    category: light
     desc: Living room (OUT10, obyvak) light, 0 = off, 100 = on
   - id: 211
     name: CMD_LIGHT_DINING_ROOM
@@ -2219,6 +2231,7 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     max: 100
     unit: '%'
     state: ST_LIGHT_DINING_ROOM
+    category: light
     desc: Dining room (OUT11, jidelna) light, 0 = off, 100 = on
   - id: 212
     name: CMD_LIGHT_KITCHEN
@@ -2228,4 +2241,143 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     max: 100
     unit: '%'
     state: ST_LIGHT_KITCHEN
+    category: light
     desc: Kitchen (OUT12, kuchyn) light, 0 = off, 100 = on
+
+  # IOBOARD_D lights (step 3b): APP_OnCommand() -> LC_RemoteControl(slot, %); slot = order of ConfigOutput()
+  - id: 101
+    name: CMD_LIGHT_WASHBASIN
+    target: IOBOARD_D
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_WASHBASIN
+    category: light
+    desc: Washbasin (OUT5, umyvadlo) light, 0 = off, 100 = on
+  - id: 102
+    name: CMD_LIGHT_KITCHEN_COUNTER
+    target: IOBOARD_D
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_KITCHEN_COUNTER
+    category: light
+    desc: Kitchen counter (OUT6, kuchynska linka) light, 0 = off, 100 = on
+  # IOBOARD_U sunscreens (step 3b): WSCRC_ManualControl(); Up/Down only from idle, Stop only while moving
+  - id: 213
+    name: CMD_SCREEN_EAST
+    target: IOBOARD_U
+    type: enum
+    enum: BlindCmd
+    state: ST_SCREEN_EAST
+    category: blind
+    desc: East sunscreen (SCRID_EAST), Up / Down start a 30 s travel, Stop stops a moving screen
+  - id: 214
+    name: CMD_SCREEN_WEST
+    target: IOBOARD_U
+    type: enum
+    enum: BlindCmd
+    state: ST_SCREEN_WEST
+    category: blind
+    desc: West sunscreen (SCRID_WEST), Up / Down start a 30 s travel, Stop stops a moving screen
+  # TECHM setpoints (step 3b): module setters TC_Set*() / BAC_SetControlTemp(), RAM only (default after reset)
+  - id: 301
+    name: CMD_UP_REQ_DAY
+    target: TECHM
+    type: float
+    min: 5
+    max: 25
+    step: 0.5
+    unit: '°C'
+    state: ST_UP_REQ_DAY_C
+    category: heating
+    desc: Upstairs room setpoint, day (TEMPCON mUpReqTempDay, default 21.5)
+  - id: 302
+    name: CMD_UP_REQ_NIGHT
+    target: TECHM
+    type: float
+    min: 5
+    max: 25
+    step: 0.5
+    unit: '°C'
+    state: ST_UP_REQ_NIGHT_C
+    category: heating
+    desc: Upstairs room setpoint, night (TEMPCON mUpReqTempNight, default 19.5)
+  - id: 303
+    name: CMD_DOWN_REQ_DAY
+    target: TECHM
+    type: float
+    min: 5
+    max: 25
+    step: 0.5
+    unit: '°C'
+    state: ST_DOWN_REQ_DAY_C
+    category: heating
+    desc: Downstairs room setpoint, day (TEMPCON mDownReqTempDay, default 21.5)
+  - id: 304
+    name: CMD_DOWN_REQ_NIGHT
+    target: TECHM
+    type: float
+    min: 5
+    max: 25
+    step: 0.5
+    unit: '°C'
+    state: ST_DOWN_REQ_NIGHT_C
+    category: heating
+    desc: Downstairs room setpoint, night (TEMPCON mDownReqTempNight, default 21.5)
+  - id: 305
+    name: CMD_EXHAUST_SET
+    target: TECHM
+    type: float
+    min: 150
+    max: 250
+    step: 5
+    unit: '°C'
+    state: ST_EXHAUST_SET_C
+    category: heating
+    desc: Boiler exhaust setpoint of the air control (BOILER_AIR mBacControlTemp_C, default 200), used from the next air control phase
+  # ELECON_D (step 3b): lights via LC_RemoteControl(slot, on/off) with their auto off, akupack heater setpoints
+  - id: 701
+    name: CMD_LIGHT_KOLARNA
+    target: ELECON_D
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_KOLARNA
+    category: light
+    desc: Kolarna light (DO1 relay), 0 = off, > 0 = on, auto off after 90 min
+  - id: 702
+    name: CMD_LIGHT_SKLEP
+    target: ELECON_D
+    type: uint32
+    min: 0
+    max: 100
+    unit: '%'
+    state: ST_LIGHT_SKLEP
+    category: light
+    desc: Sklep light (DO2 relay), 0 = off, > 0 = on, auto off after 15 min
+  - id: 703
+    name: CMD_AKUPACK_SET_DAY
+    target: ELECON_D
+    type: float
+    min: 0
+    max: 15
+    step: 0.5
+    unit: '°C'
+    state: ST_AKUPACK_SET_DAY_C
+    category: heating
+    desc: Akupack heater setpoint 5-18 h (mAkupackSetDay_C, default 10), hysteresis 0.5
+  - id: 704
+    name: CMD_AKUPACK_SET_NIGHT
+    target: ELECON_D
+    type: float
+    min: 0
+    max: 15
+    step: 0.5
+    unit: '°C'
+    state: ST_AKUPACK_SET_NIGHT_C
+    category: heating
+    desc: Akupack heater setpoint night (mAkupackSetNight_C, default 7), hysteresis 0.5

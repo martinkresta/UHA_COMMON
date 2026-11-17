@@ -74,8 +74,12 @@ commands:
     max: 100
     unit: "%"
     state: ST_LIGHT_LOFT_WEST        # VARS2 state variable produced by the target (UI shows it as feedback)
+    category: light                  # optional, UI grouping: light | blind | heating | inverter | ventilation
+    step: 10                         # optional, UI input step hint (> 0, int for non-float types)
     desc: Loft west light, 0 = off, 100 = on
 ```
+
+`category` and `step` are UI hints only (step 3b); the FW generator ignores them.
 
 - **Command id ranges = node × 100**: IOBOARD_D 100–199, IOBOARD_U 200–299, TECHM 300–399, ELECON 400–499,
   RECU 500–599, ELECON_D 700–799. Ids are never reused.
