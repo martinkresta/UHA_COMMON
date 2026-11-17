@@ -54,6 +54,25 @@ variables after `timeout_ms`. Ids (`VID_*`) and names are fixed (wire format, Uh
 
 ---
 
+### CMD — Command Channel (node side)
+**Files:** `CMD.h` / `CMD.c` (hand-written), generated `uha_cmds_gen.h/.c` from the YAML `commands:` section.
+Spec: `VarDefs/CMD_spec.md`. Commands are requests (RPi -> ELECON `SCOM.c` -> CAN `0x200 + target`); feedback is the
+VARS2 `state` variable named in the YAML. `CMD_ProcessFrame()` ignores unknown ids / other targets, converts the
+value by type and calls the node's `APP_OnCommand(eCmdId, float)` (weak empty default in `CMD.c`).
+
+```c
+void APP_OnCommand(eCmdId id, float value)        // per node, APP.c
+{
+  switch (id) {
+    case CMDID_LIGHT_STAIRS: LC_RemoteControl(OUT8, (uint8_t)CMD_Clamp(value, CMD_LIGHT_STAIRS_MIN, CMD_LIGHT_STAIRS_MAX)); break;
+    default: break;
+  }
+}
+```
+Command ids = node x 100 (IOBOARD_U 200–299, ELECON 400–499, ...), never reused.
+
+---
+
 ### MCAN — CAN Driver + NMT State Machine
 **Files:** `MCAN.h` / `MCAN.c`
 
@@ -95,6 +114,7 @@ COM_GetRxMessage(&msg)
 |-------|---------|
 | 0x100 | Button state |
 | 0x180 | VARS2 variable frame (`0x180 + node`), see `VarDefs/VARS2_spec.md` |
+| 0x200 | Command frame (`0x200 + TARGET node`), consumed by COM -> `CMD_ProcessFrame()`, see `VarDefs/CMD_spec.md` |
 | 0x120 | Gesture command |
 | 0x130 | AC remote request |
 | 0x140 | RECU remote request |

@@ -40,6 +40,9 @@ void COM_SendMessage(uint16_t cobid, uint8_t* data, uint8_t dlc) { (void)cobid; 
 int16_t COM_GetNetworkStatus(void) { return 0x1F; }
 void RTC_SetUnixTime(uint32_t t) { (void)t; }
 void APP_RpiHeartbeat(void) {}
+/* SCOM.c command forwarding (tested in test_cmd_fwd.c) */
+uint8_t CMD_ProcessFrame(const uint8_t* data) { (void)data; return 0; }
+void LOG_SendEvent(eLogEvent event, const uint8_t payload[6]) { (void)event; (void)payload; }
 
 /* ---- simulated serial line: records the frames the DMA/UART "sent" ---- */
 #define MAXCAP 20000

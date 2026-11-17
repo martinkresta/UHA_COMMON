@@ -25,6 +25,7 @@
 #define  CMD_AC_REMOTE_REQ    0x130
 #define  CMD_RECU_REMOTE_REQ  0x140
 #define  CMD_VARS2            0x180
+#define  CMD_NODE_COMMAND     0x200   // + TARGET node (not the sender!): command frame, CMD.h / CMD_spec.md
 
 
 

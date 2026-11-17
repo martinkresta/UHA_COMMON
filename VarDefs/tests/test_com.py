@@ -35,6 +35,7 @@ def build(cc, com_c, exe):
     cmd = [cc, "-std=c99", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter",
            com_c, os.path.join(SRC, "VARS2.c"),
            os.path.join(SRC, "uha_vars_gen.c"), os.path.join(HERE, "test_com.c"),
+           os.path.join(SRC, "CMD.c"), os.path.join(SRC, "uha_cmds_gen.c"),
            "-I", os.path.join(HERE, "stub_com"), "-I", INC, "-o", exe]
     rc, _ = run(cmd)
     return rc == 0

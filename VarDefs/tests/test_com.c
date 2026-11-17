@@ -16,6 +16,7 @@
 #include "VARS2.h"
 #include "MCAN.h"
 #include "COM.h"
+#include "CMD.h"
 /* keep equal to VARS2_CAN_MAX_PER_CALL in Src/VARS2.c */
 #define VARS2_TEST_CAN_MAX  2
 
@@ -176,6 +177,68 @@ static void test_rx(void)
 	CHECK(Vars2.Temperatures.Techm.Board_C.value == 25.0f && Vars2.Temperatures.Techm.Board_C.valid == 1);
 }
 
+/* ---- commands (CMD_spec.md sec.4): 0x200 + own node -> CMD_ProcessFrame() -> APP_OnCommand() ---- */
+static int gCmdCalls;
+static eCmdId gCmdId;
+static float gCmdValue;
+void APP_OnCommand(eCmdId id, float value) { gCmdCalls++; gCmdId = id; gCmdValue = value; }
+
+static void PushRxDlc(uint16_t stdId, const uint8_t* data, uint8_t dlc, uint8_t rtr)
+{
+	PushRx(stdId, data);
+	gRxQueue[gRxTail - 1].header.DLC = dlc;
+	gRxQueue[gRxTail - 1].header.RTR = rtr;
+}
+
+static void test_cmd_rx(void)
+{
+	s_CanRxMsg msg;
+	uint8_t on[8]      = { CMDID_LIGHT_STAIRS & 0xFF, CMDID_LIGHT_STAIRS >> 8, 100, 0, 0, 0, 7, 0 };
+	uint8_t big[8]     = { CMDID_LIGHT_KITCHEN & 0xFF, CMDID_LIGHT_KITCHEN >> 8, 0x00, 0x00, 0x00, 0x80, 8, 0 };  /* 2^31 */
+	uint8_t unknown[8] = { 0xE7, 0x03, 1, 0, 0, 0, 9, 0 };   /* id 999 */
+	uint8_t btn[8]     = { 0, 5, 0, 1, 0, 0, 0, 0 };
+
+	gRxHead = gRxTail = 0;
+	COM_Init(NODEID_IOBOARD_U);
+
+	gCmdCalls = 0;
+	PushRx(0x200u + NODEID_IOBOARD_U, on);
+	CHECK(COM_GetRxMessage(&msg) == 0);                       /* consumed */
+	CHECK(gCmdCalls == 1 && gCmdId == CMDID_LIGHT_STAIRS && gCmdValue == 100.0f);
+
+	gRxHead = gRxTail = 0; gCmdCalls = 0;
+	PushRx(0x200u + NODEID_IOBOARD_U, big);                    /* uint32 is read unsigned */
+	CHECK(COM_GetRxMessage(&msg) == 0 && gCmdCalls == 1 && gCmdValue == 2147483648.0f);
+
+	gRxHead = gRxTail = 0; gCmdCalls = 0;
+	PushRx(0x200u + NODEID_TECHM, on);                         /* other node's command: dropped */
+	PushRx(0x200u + NODEID_IOBOARD_U, unknown);                /* unknown id: ignored */
+	PushRxDlc(0x200u + NODEID_IOBOARD_U, on, 7, CAN_RTR_DATA); /* DLC 7: ignored */
+	PushRxDlc(0x200u + NODEID_IOBOARD_U, on, 8, 1);            /* RTR: ignored */
+	PushRx(0x100u + NODEID_IOBOARD_D, btn);                    /* normal frame after them */
+	CHECK(COM_GetRxMessage(&msg) == 1 && msg.header.StdId == 0x100u + NODEID_IOBOARD_D);
+	CHECK(gCmdCalls == 0);
+	CHECK(COM_GetRxMessage(&msg) == 0);
+
+	/* the right CAN id but the command's target is another node: ignored by CMD.c */
+	gRxHead = gRxTail = 0; gCmdCalls = 0;
+	COM_Init(NODEID_TECHM);
+	PushRx(0x200u + NODEID_TECHM, on);
+	CHECK(COM_GetRxMessage(&msg) == 0 && gCmdCalls == 0);
+	CHECK(CMD_ProcessFrame(on) == 0);
+	COM_Init(NODEID_IOBOARD_U);
+	CHECK(CMD_ProcessFrame(on) == 1 && gCmdCalls == 1);
+
+	/* clamp helper */
+	CHECK(CMD_Clamp(150.0f, 0.0f, 100.0f) == 100.0f);
+	CHECK(CMD_Clamp(-1.0f, 0.0f, 100.0f) == 0.0f);
+	CHECK(CMD_Clamp(42.0f, 0.0f, 100.0f) == 42.0f);
+	{
+		volatile float zero = 0.0f;
+		CHECK(CMD_Clamp(zero / zero, 0.0f, 100.0f) == 0.0f);   /* NaN -> min */
+	}
+}
+
 int main(void)
 {
 	static const uint8_t nodes[] = { NODEID_IOBOARD_D, NODEID_IOBOARD_U, NODEID_TECHM, NODEID_ELECON,
@@ -186,6 +249,7 @@ int main(void)
 		test_stream(nodes[k]);
 	}
 	test_rx();
+	test_cmd_rx();
 	printf("%d checks, %d failed\n", checks, fails);
 	if (fails) { printf("TEST_COM FAILED\n"); return 1; }
 	printf("TEST_COM PASSED\n");

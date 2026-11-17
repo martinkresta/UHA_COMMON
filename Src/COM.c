@@ -11,6 +11,7 @@
 #include "main.h"
 #include "COM.h"
 #include "VARS2.h"
+#include "CMD.h"
 #include "MCAN.h"
 #include "string.h"
 
@@ -57,9 +58,9 @@ int16_t COM_GetNetworkStatus(void)
 	return ns;
 }
 
-// wrapper to MCAN; VARS2 frames (0x180+node) are consumed here and never
-// returned to the application - keep fetching until a non-VARS2 frame or
-// an empty buffer is found
+// wrapper to MCAN; VARS2 frames (0x180+node) and command frames (0x200+node) are
+// consumed here and never returned to the application - keep fetching until
+// another frame or an empty buffer is found
 uint8_t COM_GetRxMessage( s_CanRxMsg* msg)
 {
 	while (1 == MCAN_GetRxMessage(msg))
@@ -68,6 +69,16 @@ uint8_t COM_GetRxMessage( s_CanRxMsg* msg)
 		{
 			VARS2_ProcessRxFrame((uint16_t)msg->header.StdId, (uint8_t)msg->header.DLC,
 					(msg->header.RTR != CAN_RTR_DATA), msg->data);
+			continue;
+		}
+		// command frames 0x200 + target node (CMD_spec.md sec.4): the own ones go to CMD, the others are
+		// dropped here, so the application never sees a command frame
+		if ((msg->header.StdId & 0x7F0) == CMD_NODE_COMMAND)
+		{
+			if ((msg->header.StdId & 0x00F) == mNodeId && msg->header.DLC == 8 && msg->header.RTR == CAN_RTR_DATA)
+			{
+				(void)CMD_ProcessFrame(msg->data);
+			}
 			continue;
 		}
 		return 1;
