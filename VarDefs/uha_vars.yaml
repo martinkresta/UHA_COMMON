@@ -2337,7 +2337,7 @@ commands:   # command channel (CMD_spec.md); requests to the target node, feedba
     unit: '°C'
     state: ST_EXHAUST_SET_C
     category: heating
-    desc: Boiler exhaust setpoint of the air control (BOILER_AIR mBacControlTemp_C, default 200), used from the next air control phase
+    desc: Boiler exhaust setpoint of the air control (BOILER_AIR mBacControlTemp_C, default 200), applied at once (next PID period)
   # ELECON_D (step 3b): lights via LC_RemoteControl(slot, on/off) with their auto off, akupack heater setpoints
   - id: 701
     name: CMD_LIGHT_KOLARNA
