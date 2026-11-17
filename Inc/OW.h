@@ -108,4 +108,8 @@ void OW_Read_SingleSensor(uint8_t busId);
 
 eOwResult OW_GetLastTransferResult(void);
 
+// read only: 9 bytes received by the last transfer (valid until the next transfer starts), busy flag
+const uint8_t* OW_GetScratchpad(void);
+uint8_t OW_IsBusy(void);
+
 #endif /* INC_OW_H_ */

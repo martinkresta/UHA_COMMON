@@ -81,3 +81,20 @@ void MCAN_ReportError(const uint8_t payload[6], uint8_t beforeReset)
   }
 #endif
 }
+
+void LOG_SendEvent(eLogEvent event, const uint8_t payload[6])
+{
+#ifndef LOG_MASTER_NODE
+  uint8_t data[6];
+  memcpy(data, payload, 6);
+  COM_SendLogMsg(event, data);
+#else
+  uint8_t scomLogData[10];
+  scomLogData[0] = CMD_LOG_MSG >> 8;
+  scomLogData[1] = CMD_LOG_MSG & 0xFF;
+  scomLogData[2] = THIS_NODE;
+  scomLogData[3] = (uint8_t)event;
+  memcpy(&(scomLogData[4]), payload, 6);
+  SCOM_SendMsg(scomLogData, 10);
+#endif
+}

@@ -154,6 +154,8 @@ TEMP_Update100ms()
 ```
 
 Invalidation: 5 consecutive errors → sensor marked invalid.
+85.0 °C power-on value (scratchpad 0x0550, valid CRC) is ignored unless plausible (last value within ±5 °C, or 3× in
+a row) and logged as 0x620 eleLog (0x21 / 0x22), see `KnownIssues/KI-005`.
 
 ---
 

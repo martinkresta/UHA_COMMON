@@ -333,6 +333,16 @@ eOwResult OW_GetLastTransferResult(void)
 	return mLastTransferResult;
 }
 
+const uint8_t* OW_GetScratchpad(void)
+{
+	return mRxBuff;
+}
+
+uint8_t OW_IsBusy(void)
+{
+	return mBusy;
+}
+
 uint8_t* OW_GetRom(void)
 {
 	return mROM;
